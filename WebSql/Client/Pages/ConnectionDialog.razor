@@ -1,0 +1,122 @@
+﻿@using WebSql.Shared
+@inject IConnectionService ConnectionService
+@inject ILocalStorageService LocalStorage
+
+<HxModal @ref="connectionDialog" Title="Connect To Server">
+	<BodyTemplate>
+		<div class="container overflow-hidden">
+			<div class="row g-5">
+				<div class="col">
+					Server type:
+				</div>
+				<div class="col">
+					<HxDropdown>
+						<HxDropdownToggleButton Color="ThemeColor.Secondary">SQL Database Engine</HxDropdownToggleButton>
+					</HxDropdown>
+				</div>
+			</div>
+			<div class="row g-5">
+				<div class="col">
+					Server name:
+				</div>
+				<div class="col">
+					<HxInputText @bind-Value="serverName" Label="" />
+					@*TODO: Add auto complete*@
+					@*<HxAutosuggest Label=""
+								   Placeholder=""
+								   TItem="string"
+								   TValue="string"
+								   @bind-Value="@serverName"
+								   DataProvider="ProvideSuggestions">
+						
+						<EmptyTemplate>
+							<span class="p-2">Couldn't find any matching locale</span>
+						</EmptyTemplate>
+					</HxAutosuggest>*@
+				</div>
+			</div>
+			<div class="row g-5">
+				<div class="col">
+					Integrated Security:
+				</div>
+				<div class="col">
+					<HxInputCheckbox @bind-Value="integratedSecurity" Label="" />
+				</div>
+			</div>
+			<div class="row g-5">
+				<div class="col">
+					Login:
+				</div>
+				<div class="col">
+					<HxInputText @bind-Value="login" Label="" Enabled="@(!integratedSecurity)" />
+				</div>
+			</div>
+			<div class="row g-5">
+				<div class="col">
+					Password:
+				</div>
+				<div class="col">
+					<HxInputText @bind-Value="password" Label="" InputType="InputType.Password" Enabled="@(!integratedSecurity)" />
+				</div>
+			</div>
+			<div class="row g-5">
+				<div class="col">
+					Remember Details
+				</div>
+				<div class="col">
+					<HxInputCheckbox @bind-Value="rememberDetails" Enabled="@(!integratedSecurity)" />
+				</div>
+			</div>
+		</div>
+	</BodyTemplate>
+	<FooterTemplate>
+		<HxButton Text="Connect" OnClick="HandleConnectClick" Color="ThemeColor.Primary" />
+		<HxButton Text="Close" OnClick="HandleHideClick" Color="ThemeColor.Primary" />
+	</FooterTemplate>
+</HxModal>
+
+@code
+{
+	private HxModal connectionDialog;
+	private string password = "";
+	private string login = "";
+	private string serverName = "";
+	private bool integratedSecurity = true;
+	private bool rememberDetails = true;
+	private List<string> serverDetails = new List<string>();
+
+	public async Task Show()
+	{
+		//var keys = await LocalStorage.KeysAsync();
+		//foreach(string s in keys.Where(x => x.StartsWith("ServerName")))
+		//	serverDetails.Add(s.Split('=')[1]);
+
+		await connectionDialog.ShowAsync();
+	}
+
+	private async Task HandleConnectClick()
+	{
+		ConnectionService.ConnectionDetails.ServerName = serverName;
+		ConnectionService.ConnectionDetails.Login = login;
+		ConnectionService.ConnectionDetails.Password = password;
+		ConnectionService.ConnectionDetails.IntegratedSecurity = integratedSecurity;
+		await ConnectionService.GetExplorerAsync();
+
+		LocalStorage.SetItemAsync($"ServerName={serverName}", ConnectionService);
+
+		await connectionDialog.HideAsync();
+	}
+
+	private async Task HandleHideClick()
+	{
+		await connectionDialog.HideAsync();
+	}
+
+	private async Task<AutosuggestDataProviderResult<string>> ProvideSuggestions(AutosuggestDataProviderRequest request)
+	{
+		return new AutosuggestDataProviderResult<string>
+		{
+			Data = serverDetails
+		};
+	}
+}

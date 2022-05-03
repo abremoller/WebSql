@@ -1,0 +1,11 @@
+﻿@page "/"
+
+<HxButton Text="Connect Object Explorer" Color="ThemeColor.Primary" OnClick="() => connectionStringDialog.Show()"/>
+<ConnectionDialog @ref="connectionStringDialog" />
+
+<HxIcon Icon="@BootstrapIcon.HandThumbsUp" CssClass="display-3" />
+
+@code
+{
+    ConnectionDialog connectionStringDialog;
+}
