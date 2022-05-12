@@ -11,6 +11,10 @@ namespace WebSql.Client.Services
         string SelectedDatabase { get; set; }
         IEnumerable<string> DatabaseNames { get; set; }
 
+        ObjectExplorer ObjectExplorer { get; }
+
         Task<bool> GetExplorerAsync();
+
+        Task<int> RunQuery(string query);
     }
 }

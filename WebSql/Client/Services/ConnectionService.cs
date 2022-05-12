@@ -9,6 +9,7 @@ namespace WebSql.Client.Services
 		private string _connectionString;
 		private List<string> _databases;
 		private string _selectedDatabase;
+		private Table _table;
 
 		private ObjectExplorer _objectExplorer = null;
 		private readonly HttpClient _http;
@@ -30,7 +31,7 @@ namespace WebSql.Client.Services
 
         public async Task<bool> GetExplorerAsync()
 		{
-			ObjectExplorer = await _http.GetFromJsonAsync<ObjectExplorer>($"api/SQL?connectionString={ConnectionString}");
+			ObjectExplorer = await _http.GetFromJsonAsync<ObjectExplorer>($"SQL/GetServerExplorer/{ConnectionString}");
 
 			return true;
 		}
@@ -38,8 +39,15 @@ namespace WebSql.Client.Services
 		private string GetConnectionString()
 		{
 			return ConnectionDetails.IntegratedSecurity
-				? $"Data Source={ConnectionDetails.ServerName};Integrated Security=True"
+				? $"Data Source={ConnectionDetails.ServerName};Integrated Security=True;"
 				: $"Data Source={ConnectionDetails.ServerName};User Id={ConnectionDetails.Login};Password={ConnectionDetails.Password};";
 		}
-	}
+
+        public async Task<int> RunQuery(string query)
+        {
+            _table = await _http.GetFromJsonAsync<Table>($"SQL/RunQuery/{ConnectionString}&{query}");
+
+			return _table.Rows.Count;
+        }
+    }
 }

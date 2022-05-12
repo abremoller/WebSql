@@ -85,6 +85,10 @@
 	private bool rememberDetails = true;
 	private List<string> serverDetails = new List<string>();
 
+	public delegate void DialogClose();
+
+	public event DialogClose OnDialogClose;
+
 	public async Task Show()
 	{
 		//var keys = await LocalStorage.KeysAsync();
@@ -94,17 +98,22 @@
 		await connectionDialog.ShowAsync();
 	}
 
-	private async Task HandleConnectClick()
+	private async Task<bool> HandleConnectClick()
 	{
 		ConnectionService.ConnectionDetails.ServerName = serverName;
 		ConnectionService.ConnectionDetails.Login = login;
 		ConnectionService.ConnectionDetails.Password = password;
 		ConnectionService.ConnectionDetails.IntegratedSecurity = integratedSecurity;
-		await ConnectionService.GetExplorerAsync();
+		bool connected = await ConnectionService.GetExplorerAsync();
 
 		LocalStorage.SetItemAsync($"ServerName={serverName}", ConnectionService);
 
 		await connectionDialog.HideAsync();
+
+		if (OnDialogClose != null)
+			OnDialogClose();
+
+		return true;
 	}
 
 	private async Task HandleHideClick()

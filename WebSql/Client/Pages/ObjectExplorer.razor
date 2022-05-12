@@ -1,4 +1,5 @@
-﻿@inject IConnectionService ConnectionService
+﻿@using WebSql.Shared
+@inject IConnectionService ConnectionService
 
 <div class="row">
     <div class="col-lg-4" style="height: 400px">
@@ -28,7 +29,7 @@
 
     protected override void OnInitialized()
     {
-        
+        fileSystem = ToTreeviewFormat(ConnectionService.ObjectExplorer);
 
 
         fileSystem = new[]
@@ -68,6 +69,60 @@
         };
 
         selectedDirectory = fileSystem.First();
+    }
+
+    private Directory[] ToTreeviewFormat(WebSql.Shared.ObjectExplorer explorer)
+    {
+        List<Directory> dataBases = new List<Directory>();
+
+        foreach(var db in explorer.Server.Databases)
+        {
+            dataBases.Add(new Directory(explorer.Server.ServerName, BootstrapIcon.Server) { Subdirectories = CreateSubDirectories(db) });
+        }
+
+        Directory[] server = new Directory[] { new Directory(explorer.Server.ServerName, BootstrapIcon.Cloud) };
+
+        return server;
+    }
+
+    private Directory[] CreateSubDirectories(Database database)
+    {
+        Directory[] dirs = new[]
+        {
+            new Directory("Tables", BootstrapIcon.Table) { Subdirectories = GetTables(database.Tables) }
+        };
+
+        return dirs;
+    }
+
+    private Directory[] GetTables(IEnumerable<Table> tables)
+    {
+        List<Directory> directories = new List<Directory>();
+
+        foreach (var t in tables)
+            directories.Add(new Directory(t.Name) { Icon = BootstrapIcon.Table, Subdirectories = GetTableSubDirectories(t) });
+
+        return directories.ToArray();
+    }
+
+    private Directory[] GetColumns(IEnumerable<Column> columns)
+    {
+        List<Directory> cols = new List<Directory>();
+
+        foreach(var c in columns)
+        {
+            cols.Add(new Directory(c.Name, BootstrapIcon.Columns) {  });
+        }
+
+        return cols.ToArray();
+    }
+
+    private Directory[] GetTableSubDirectories(Table table)
+    {
+        return new Directory[]
+        {
+            new Directory("Columns") { Subdirectories = GetColumns(table.Columns)  }
+        };
     }
 
     public class Directory

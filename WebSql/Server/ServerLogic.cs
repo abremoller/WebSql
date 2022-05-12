@@ -85,5 +85,32 @@ namespace WebSql.Server
 			logic.PopulateDatabases();
 			return logic.ReadObjectExplorer();
         }
+
+		public static Table RunQuery(string connectionString, string query)
+        {
+			MSSQL sql = new MSSQL(connectionString);
+			var dt = sql.RunQuery(query);
+
+			Table table = new Table();
+			table.Columns = new List<Column>();
+
+			foreach (DataColumn dc in dt.Columns)
+				table.Columns.Add(new Column() { Name = dc.ColumnName, Type = dc.DataType.ToString() });
+
+			List<List<string>> rows = new List<List<string>>();
+			foreach (DataRow dr in dt.Rows)
+			{
+				List<string> columns = new List<string>();
+
+				foreach (var c in table.Columns)
+					columns.Add(dr[c.Name].ToString());
+
+				rows.Add(columns);
+			}
+
+			table.Rows = rows;
+
+			return table;
+		}
     }
 }
