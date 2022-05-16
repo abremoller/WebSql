@@ -3,66 +3,80 @@
 @using static WebSql.Client.Pages.ConnectionDialog
 @inject IConnectionService ConnectionService
 
-<HxButton Text="Connect Object Explorer" Color="ThemeColor.Primary" OnClick="RunQuery"/>
-<CodeEditor @ref="codeEditor" />
-
-@*
-	<div style="--hx-sidebar-brand-logo-background-color: var(--bs-primary);">
-	<HxSidebar>
-		<HeaderTemplate>
-			<HxSidebarBrand BrandName="Brand name" BrandNameShort="BN" />
-		</HeaderTemplate>
-		<ItemsTemplate>
-			<HxSidebarItem Text="Match Test 1" Icon="BootstrapIcon.Person" Href="." Match="NavLinkMatch.Prefix">
-				<HxSidebarItem Text="Item 1" Href="#x1" Match="NavLinkMatch.All" />
-				<HxSidebarItem Text="Another item" Href="TODO" />
-				<HxSidebarItem Text="Item 3" Href="TODO" />
-				<HxSidebarItem Text="Another item 4" Href="TODO" />
-			</HxSidebarItem>
-			<HxSidebarItem Text="Plain section" Icon="BootstrapIcon.Person">
-				<HxSidebarItem Text="Item 1" Href="/HxSidebarTest#x1" Match="NavLinkMatch.All" />
-				<HxSidebarItem Text="Another item" Href="TODO" />
-				<HxSidebarItem Text="Item 3" Href="TODO" />
-				<HxSidebarItem Text="Another item 4" Href="TODO" />
-			</HxSidebarItem>
-			<HxSidebarItem Text="Subitems with icons" Href="TODO" Icon="BootstrapIcon.Clock">
-				<HxSidebarItem Text="Item 1" Icon="BootstrapIcon.Person" Href="#" />
-				<HxSidebarItem Text="Another item" Icon="BootstrapIcon.Clock" Href="TODO" />
-				<HxSidebarItem Text="Item 3" Icon="BootstrapIcon.Wallet2" Href="TODO" />
-				<HxSidebarItem Text="Another item 4" Icon="BootstrapIcon.ClipboardData" Href="TODO" />
-			</HxSidebarItem>
-			<HxSidebarItem Text="First-level item 1" Href="TODO" Icon="BootstrapIcon.Wallet2" />
-			<HxSidebarItem Text="First-level item 1" Href="TODO" Icon="BootstrapIcon.ClipboardData" />
-		</ItemsTemplate>
-		<FooterTemplate>
-			<HxSidebarFooter Text="login" Icon="BootstrapIcon.Person" />
-		</FooterTemplate>
-	</HxSidebar>
+<div class="row">
+	<div class="col-lg-4" style="--hx-sidebar-brand-logo-background-color: var(--bs-primary);">
+		<HxSidebar>
+			<HeaderTemplate>
+				<HxSidebarBrand BrandName="Object Explorer" BrandNameShort="SQL" />
+			</HeaderTemplate>
+			<ItemsTemplate>
+				<ObjectExplorer />
+			</ItemsTemplate>
+			<FooterTemplate>
+				@*<HxSidebarFooter Text="login" Icon="BootstrapIcon.Person" />*@
+			</FooterTemplate>
+		</HxSidebar>
+	</div>
+	<div class="col-lg-8">
+		<HxAccordion StayOpen="true">
+			<HxAccordionItem @ref="codeEditorAccordion">
+				<HeaderTemplate>
+					<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="RunQuery" style="margin:-10px;"/>
+				</HeaderTemplate>
+				<BodyTemplate>
+					<CodeEditor @ref="codeEditor" />
+				</BodyTemplate>
+			</HxAccordionItem>
+			@*<HxAccordionItem>
+				<BodyTemplate>
+					
+				</BodyTemplate>
+			</HxAccordionItem>*@
+		</HxAccordion>
+		<HxTabPanel>
+			<HxTab>
+				<TitleTemplate>
+					<HxCardText>
+						<HxIcon Icon="BootstrapIcon.Table" />
+						Results
+					</HxCardText>
+				</TitleTemplate>
+				<Content>
+					<ResultsGrid />
+				</Content>
+			</HxTab>
+			<HxTab Id="messagesTab">
+				<TitleTemplate>
+					<HxCardText><HxIcon Icon="BootstrapIcon.PcDisplay" />Messages</HxCardText>
+				</TitleTemplate>
+				<Content></Content>
+			</HxTab>
+		</HxTabPanel>
+	</div>
 </div>
-*@
 
-<div class="wrapper">
 
-    <!-- Page Content -->
-    <div id="content">
-        <HxButton Text="Connect Object Explorer" Color="ThemeColor.Primary" OnClick="() => connectionStringDialog.Show()"/>
-        <ConnectionDialog @ref="connectionStringDialog" />
+            
+<!-- Page Content -->
+<div id="content">
+    @*<HxButton Text="Connect Object Explorer" Color="ThemeColor.Primary" OnClick="() => connectionStringDialog.Show()"/>*@
+    <ConnectionDialog @ref="connectionStringDialog" />
 
-        <HxIcon Icon="@BootstrapIcon.HandThumbsUp" CssClass="display-3" />
-    </div>
-
-</div>       
+    @*<HxIcon Icon="@BootstrapIcon.HandThumbsUp" CssClass="display-3" />*@
+</div>
 
 @code
 {
+	HxAccordionItem codeEditorAccordion;
 	ConnectionDialog connectionStringDialog;
 	CodeEditor codeEditor;
 
 	protected override void OnAfterRender(bool firstRender)
 	{
-		base.OnAfterRender(firstRender);
-
 		connectionStringDialog.OnDialogClose += ConnectionDialogClosed;
+		connectionStringDialog.Show();
+
+		codeEditorAccordion.ExpandAsync();
 	}
 
 

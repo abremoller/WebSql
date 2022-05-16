@@ -2,7 +2,7 @@
 @inject IConnectionService ConnectionService
 
 <div class="row">
-    <div class="col-lg-4" style="height: 400px">
+    <div class="col-lg-12" style="height: 400px">
         <HxTreeView TItem="Directory"
                     @bind-SelectedItem="selectedDirectory"
                     Items="@fileSystem"
@@ -11,27 +11,20 @@
                     ItemChildrenSelector="@(p => p.Subdirectories)"
                     ItemIconSelector="@(p => p.Icon)" />
     </div>
-    <div class="col-lg-4">
-        @if (selectedDirectory == null)
-        {
-            <p>No directory selected.</p>
-        }
-        else
-        {
-            <p>Directory <b>@selectedDirectory.Name</b> selected.</p>
-        }
-    </div>
 </div>
 
 @code {
     private Directory selectedDirectory;
     private Directory[] fileSystem;
 
+    public void AddObjectExplorer(WebSql.Shared.ObjectExplorer objectExplorer)
+    {
+        //fileSystem = ToTreeviewFormat(objectExplorer);
+        //selectedDirectory = fileSystem.First();
+    }
+
     protected override void OnInitialized()
     {
-        fileSystem = ToTreeviewFormat(ConnectionService.ObjectExplorer);
-
-
         fileSystem = new[]
             {
             new Directory("C:\\", BootstrapIcon.Folder)
@@ -67,8 +60,6 @@
                 }
             }
         };
-
-        selectedDirectory = fileSystem.First();
     }
 
     private Directory[] ToTreeviewFormat(WebSql.Shared.ObjectExplorer explorer)
