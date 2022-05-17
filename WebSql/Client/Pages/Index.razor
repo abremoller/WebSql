@@ -3,55 +3,60 @@
 @using static WebSql.Client.Pages.ConnectionDialog
 @inject IConnectionService ConnectionService
 
-<div class="row">
-	<div class="col-lg-4" style="--hx-sidebar-brand-logo-background-color: var(--bs-primary);">
-		<HxSidebar>
-			<HeaderTemplate>
-				<HxSidebarBrand BrandName="Object Explorer" BrandNameShort="SQL" />
-			</HeaderTemplate>
-			<ItemsTemplate>
-				<ObjectExplorer />
-			</ItemsTemplate>
-			<FooterTemplate>
-				@*<HxSidebarFooter Text="login" Icon="BootstrapIcon.Person" />*@
-			</FooterTemplate>
-		</HxSidebar>
-	</div>
-	<div class="col-lg-8">
-		<HxAccordion StayOpen="true">
-			<HxAccordionItem @ref="codeEditorAccordion">
+<div class="container">
+	<div class="row">
+		<div class="col-4" style="--hx-sidebar-brand-logo-background-color: var(--bs-primary);width:20%;">
+			<HxSidebar>
 				<HeaderTemplate>
-					<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="RunQuery" style="margin:-10px;"/>
+					<HxSidebarBrand BrandName="Object Explorer" BrandNameShort="SQL" />
 				</HeaderTemplate>
-				<BodyTemplate>
-					<CodeEditor @ref="codeEditor" />
-				</BodyTemplate>
-			</HxAccordionItem>
-			@*<HxAccordionItem>
-				<BodyTemplate>
+				<ItemsTemplate>
+					@if(connected)
+					{
+						<ObjectExplorer @ref="objectExplorer" />
+					}
+				</ItemsTemplate>
+				<FooterTemplate>
+					@*<HxSidebarFooter Text="login" Icon="BootstrapIcon.Person" />*@
+				</FooterTemplate>
+			</HxSidebar>
+		</div>
+		<div class="col-8">
+			<HxAccordion StayOpen="true">
+				<HxAccordionItem @ref="codeEditorAccordion">
+					<HeaderTemplate>
+						<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="RunQuery" style="margin:-10px;"/>
+					</HeaderTemplate>
+					<BodyTemplate>
+						<CodeEditor @ref="codeEditor" />
+					</BodyTemplate>
+				</HxAccordionItem>
+				@*<HxAccordionItem>
+					<BodyTemplate>
 					
-				</BodyTemplate>
-			</HxAccordionItem>*@
-		</HxAccordion>
-		<HxTabPanel>
-			<HxTab>
-				<TitleTemplate>
-					<HxCardText>
-						<HxIcon Icon="BootstrapIcon.Table" />
-						Results
-					</HxCardText>
-				</TitleTemplate>
-				<Content>
-					<ResultsGrid />
-				</Content>
-			</HxTab>
-			<HxTab Id="messagesTab">
-				<TitleTemplate>
-					<HxCardText><HxIcon Icon="BootstrapIcon.PcDisplay" />Messages</HxCardText>
-				</TitleTemplate>
-				<Content></Content>
-			</HxTab>
-		</HxTabPanel>
+					</BodyTemplate>
+				</HxAccordionItem>*@
+			</HxAccordion>
+			<HxTabPanel>
+				<HxTab>
+					<TitleTemplate>
+						<HxCardText>
+							<HxIcon Icon="BootstrapIcon.Table" />
+							Results
+						</HxCardText>
+					</TitleTemplate>
+					<Content>
+						<ResultsGrid />
+					</Content>
+				</HxTab>
+				<HxTab Id="messagesTab">
+					<TitleTemplate>
+						<HxCardText><HxIcon Icon="BootstrapIcon.PcDisplay" />Messages</HxCardText>
+					</TitleTemplate>
+					<Content></Content>
+				</HxTab>
+			</HxTabPanel>
+		</div>
 	</div>
 </div>
 
@@ -70,6 +75,8 @@
 	HxAccordionItem codeEditorAccordion;
 	ConnectionDialog connectionStringDialog;
 	CodeEditor codeEditor;
+	ObjectExplorer objectExplorer;
+	private bool connected;
 
 	protected override void OnAfterRender(bool firstRender)
 	{
@@ -82,7 +89,7 @@
 
 	public void ConnectionDialogClosed()
 	{
-
+		connected = true;
 	}
 
 	public void RunQuery()

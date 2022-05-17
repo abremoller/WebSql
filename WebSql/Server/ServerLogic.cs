@@ -34,9 +34,17 @@ namespace WebSql.Server
 			foreach (string dbName in _databases)
 			{
 				var db = new Database() { Name = dbName };
-				PopulateDatabaseStructures(db);
-				objectExplorer.Server.Databases.Add(db);
 
+				try
+                {
+					PopulateDatabaseStructures(db);
+				}
+                catch
+                {
+					db.Name += " (unavailable)";
+                }
+
+				objectExplorer.Server.Databases.Add(db);
 			}
 
 			return objectExplorer;

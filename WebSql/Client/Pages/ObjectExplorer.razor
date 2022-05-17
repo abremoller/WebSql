@@ -3,7 +3,8 @@
 
 <div class="row">
     <div class="col-lg-12" style="height: 400px">
-        <HxTreeView TItem="Directory"
+            <HxTreeView 
+                    TItem="Directory"
                     @bind-SelectedItem="selectedDirectory"
                     Items="@fileSystem"
                     CssClass="border rounded p-2"
@@ -14,52 +15,19 @@
 </div>
 
 @code {
+    HxTreeView<Directory> treeview;
     private Directory selectedDirectory;
     private Directory[] fileSystem;
 
-    public void AddObjectExplorer(WebSql.Shared.ObjectExplorer objectExplorer)
-    {
-        //fileSystem = ToTreeviewFormat(objectExplorer);
-        //selectedDirectory = fileSystem.First();
-    }
-
     protected override void OnInitialized()
     {
-        fileSystem = new[]
-            {
-            new Directory("C:\\", BootstrapIcon.Folder)
-            {
-                Subdirectories = new[]
-                {
-                    new Directory("Program Files", BootstrapIcon.Gem)
-                    {
-                        Subdirectories = new[] { new Directory("Visual Studio 2022"), new Directory("Rider 2021.3"), new Directory("VS Code"), new Directory("Borland Pascal") }
-                    },
-                    new Directory("Users", BootstrapIcon.Person)
-                    {
-                        Subdirectories = new[] { new Directory("Vladimir"), new Directory("Jhosav"), new Directory("Ben"), new Directory("Admin") }
-                    },
-                    new Directory("Data", BootstrapIcon.Person)
-                    {
-                        Subdirectories = new[] { new Directory("Open Office"), new Directory("Git", BootstrapIcon.Magic), new Directory("Autocad") }
-                    },
-                }
-            },
-            new Directory("D:\\", BootstrapIcon.Folder2)
-            {
-                Subdirectories = new[]
-                {
-                    new Directory("Games", BootstrapIcon.Play)
-                    {
-                        Subdirectories = new[] { new Directory("Cyberpunk 2077"), new Directory("The Witcher 3"), new Directory("Tetris"), new Directory("Little Big Adventure 2: Twinsen's Odyssey") }
-                    },
-                    new Directory("Music", BootstrapIcon.FileMusic)
-                    {
-                        Subdirectories = new[] { new Directory("Queen"), new Directory("Metallica"), new Directory("AC/DC") }
-                    }
-                }
-            }
-        };
+        AddObjectExplorer(ConnectionService.ObjectExplorer);
+    }
+
+    public void AddObjectExplorer(WebSql.Shared.ObjectExplorer objectExplorer)
+    {
+        fileSystem = ToTreeviewFormat(objectExplorer);
+        selectedDirectory = fileSystem.First();
     }
 
     private Directory[] ToTreeviewFormat(WebSql.Shared.ObjectExplorer explorer)
@@ -68,12 +36,15 @@
 
         foreach(var db in explorer.Server.Databases)
         {
-            dataBases.Add(new Directory(explorer.Server.ServerName, BootstrapIcon.Server) { Subdirectories = CreateSubDirectories(db) });
+            dataBases.Add(new Directory(db.Name, BootstrapIcon.Server) { Subdirectories = CreateSubDirectories(db) });
         }
 
-        Directory[] server = new Directory[] { new Directory(explorer.Server.ServerName, BootstrapIcon.Cloud) };
+        var server = new Directory(explorer.Server.ServerName ?? "Server", BootstrapIcon.Cloud);
+        server.Subdirectories = dataBases.ToArray();
 
-        return server;
+        Directory[] dirs = new Directory[] { server };
+
+        return dirs;
     }
 
     private Directory[] CreateSubDirectories(Database database)
