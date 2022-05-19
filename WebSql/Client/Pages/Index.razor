@@ -3,72 +3,86 @@
 @using static WebSql.Client.Pages.ConnectionDialog
 @inject IConnectionService ConnectionService
 
-<div class="container">
+<div class="container-fluid">
 	<div class="row">
-		<div class="col-4" style="--hx-sidebar-brand-logo-background-color: var(--bs-primary);width:20%;">
+		<div class="col-lg-auto" style="--hx-sidebar-brand-logo-background-color: var(--bs-primary);">
 			<HxSidebar>
-				<HeaderTemplate>
-					<HxSidebarBrand BrandName="Object Explorer" BrandNameShort="SQL" />
-				</HeaderTemplate>
 				<ItemsTemplate>
-					@if(connected)
-					{
-						<ObjectExplorer @ref="objectExplorer" />
-					}
+					<HxSidebarItem Text="Server" Icon="BootstrapIcon.Cloud">
+						@if(connected)
+						{
+							<ObjectExplorer @ref="objectExplorer" />
+						}
+					</HxSidebarItem>
+					<HxSidebarItem Text="Connect" Icon="BootstrapIcon.CloudArrowUp">
+						<HxButton OnClick="() => connectionStringDialog.Show()" />
+					</HxSidebarItem>
 				</ItemsTemplate>
 				<FooterTemplate>
-					@*<HxSidebarFooter Text="login" Icon="BootstrapIcon.Person" />*@
+					@*<HxButton Text="Connect" Icon="BootstrapIcon.CloudArrowUp" OnClick="() => connectionStringDialog.Show()" />*@
+					@*<HxSidebarFooter Text="Connect" Icon="BootstrapIcon.CloudArrowUp" />*@
+					
 				</FooterTemplate>
 			</HxSidebar>
+			
+
 		</div>
-		<div class="col-8">
+		<div class="col">
 			<HxAccordion StayOpen="true">
 				<HxAccordionItem @ref="codeEditorAccordion">
-					<HeaderTemplate>
-						<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="RunQuery" style="margin:-10px;"/>
-					</HeaderTemplate>
 					<BodyTemplate>
-						<CodeEditor @ref="codeEditor" />
+						@if(connected)
+						{
+							<HxDropdown>
+								<HxDropdownToggleButton Color="ThemeColor.Secondary">@ConnectionService.SelectedDatabase</HxDropdownToggleButton>
+								<HxDropdownMenu>
+									@foreach(var v in ConnectionService.DatabaseNames)
+									{
+										<HxDropdownItem OnClick="() => ChangeSelectedDatabase(v)">@v</HxDropdownItem>	
+									}
+								</HxDropdownMenu>
+							</HxDropdown>
+							<HxButtonGroup>
+								<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="RunQuery"/>
+							</HxButtonGroup>
+						}
+					<CodeEditor @ref="codeEditor" />
 					</BodyTemplate>
 				</HxAccordionItem>
-				@*<HxAccordionItem>
-					<BodyTemplate>
-					
-					</BodyTemplate>
-				</HxAccordionItem>*@
 			</HxAccordion>
-			<HxTabPanel>
-				<HxTab>
-					<TitleTemplate>
-						<HxCardText>
-							<HxIcon Icon="BootstrapIcon.Table" />
-							Results
-						</HxCardText>
-					</TitleTemplate>
-					<Content>
-						<ResultsGrid />
-					</Content>
-				</HxTab>
-				<HxTab Id="messagesTab">
-					<TitleTemplate>
-						<HxCardText><HxIcon Icon="BootstrapIcon.PcDisplay" />Messages</HxCardText>
-					</TitleTemplate>
-					<Content></Content>
-				</HxTab>
-			</HxTabPanel>
 		</div>
 	</div>
+	<div class="row">
+	<HxTabPanel>
+			<HxTab>
+				<TitleTemplate>
+					<HxCardText>
+						<HxIcon Icon="BootstrapIcon.Table" />
+						Results
+					</HxCardText>
+				</TitleTemplate>
+				<Content>
+					<ResultsGrid @ref="ResultsGrid" />
+				</Content>
+			</HxTab>
+			<HxTab Id="messagesTab">
+				<TitleTemplate>
+					<HxCardText><HxIcon Icon="BootstrapIcon.PcDisplay" />Messages</HxCardText>
+				</TitleTemplate>
+				<Content></Content>
+			</HxTab>
+		</HxTabPanel>
+	</div>
 </div>
+	
 
 
-            
-<!-- Page Content -->
-<div id="content">
-    @*<HxButton Text="Connect Object Explorer" Color="ThemeColor.Primary" OnClick="() => connectionStringDialog.Show()"/>*@
-    <ConnectionDialog @ref="connectionStringDialog" />
-
-    @*<HxIcon Icon="@BootstrapIcon.HandThumbsUp" CssClass="display-3" />*@
-</div>
+@if (!connected)
+{
+	<div id="content">
+		<ConnectionDialog @ref="connectionStringDialog" />
+	</div>
+}
 
 @code
 {
@@ -76,6 +90,7 @@
 	ConnectionDialog connectionStringDialog;
 	CodeEditor codeEditor;
 	ObjectExplorer objectExplorer;
+	ResultsGrid ResultsGrid;
 	private bool connected;
 
 	protected override void OnAfterRender(bool firstRender)
@@ -90,10 +105,18 @@
 	public void ConnectionDialogClosed()
 	{
 		connected = true;
+		StateHasChanged();
 	}
 
-	public void RunQuery()
+	public async void RunQuery()
 	{
-		ConnectionService.RunQuery(codeEditor.Text);
+		int rowsReturned = await ConnectionService.RunQuery(codeEditor.Text);
+		if (rowsReturned > 0)
+			ResultsGrid.DisplayResults();
+	}
+
+	private void ChangeSelectedDatabase(string selectedItem)
+	{
+		ConnectionService.SelectedDatabase = selectedItem;
 	}
 }

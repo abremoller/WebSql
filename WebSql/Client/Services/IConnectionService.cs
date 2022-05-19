@@ -16,5 +16,7 @@ namespace WebSql.Client.Services
         Task<bool> GetExplorerAsync();
 
         Task<int> RunQuery(string query);
+
+        Table Table { get; }
     }
 }

@@ -8,7 +8,7 @@ namespace WebSql.Client.Services
 	{
 		private string _connectionString;
 		private List<string> _databases;
-		private string _selectedDatabase;
+		private string _selectedDatabase = "master";
 		private Table _table;
 
 		private ObjectExplorer _objectExplorer = null;
@@ -21,6 +21,8 @@ namespace WebSql.Client.Services
 			ConnectionDetails = new ConnectionDetails();
 		}
 
+		public Table Table { get => _table; }
+
 		public ObjectExplorer ObjectExplorer { get => _objectExplorer; private set => _objectExplorer = value; }
 
 		public string ConnectionString { get => GetConnectionString(); }
@@ -32,15 +34,21 @@ namespace WebSql.Client.Services
         public async Task<bool> GetExplorerAsync()
 		{
 			ObjectExplorer = await _http.GetFromJsonAsync<ObjectExplorer>($"SQL/GetServerExplorer/{ConnectionString}");
+			DatabaseNames = ObjectExplorer.Server.Databases.Select(x => x.Name).ToList();
 
 			return true;
 		}
 
 		private string GetConnectionString()
 		{
-			return ConnectionDetails.IntegratedSecurity
+			string connectionString = ConnectionDetails.IntegratedSecurity
 				? $"Data Source={ConnectionDetails.ServerName};Integrated Security=True;"
 				: $"Data Source={ConnectionDetails.ServerName};User Id={ConnectionDetails.Login};Password={ConnectionDetails.Password};";
+
+			if (ObjectExplorer != null)
+				connectionString += $" Initial Catalog={SelectedDatabase};";
+
+			return connectionString;
 		}
 
         public async Task<int> RunQuery(string query)

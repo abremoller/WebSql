@@ -1,6 +1,32 @@
 ﻿@using System.Globalization
+@inject IConnectionService ConnectionService
 
-<HxGrid TItem="CultureInfo" DataProvider="GetGridData" PageSize="10">
+@if (hasResults)
+{
+	<table class="table table-bordered">
+		<thead>
+			<tr>
+				@foreach (var col in ConnectionService.Table.Columns)
+				{
+					<th>@col.Name</th>
+				}
+			</tr>
+		</thead>
+		<tbody>
+			@foreach (var row in ConnectionService.Table.Rows)
+			{
+				<tr>
+					@foreach (var col in row)
+					{
+						<td>@col</td>
+					}
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+@*<HxGrid TItem="CultureInfo" DataProvider="GetGridData" PageSize="10">
 	<Columns>
 		<HxGridColumn TItem="CultureInfo" HeaderText="LCID" ItemTextSelector="@(item => item.LCID.ToString())" SortKeySelector="@(item => item.LCID)" IsDefaultSortColumn="true" />
 		<HxGridColumn TItem="CultureInfo" HeaderText="DisplayName" ItemTextSelector="@(item => item.DisplayName)" SortKeySelector="@(item => item.DisplayName)" />
@@ -8,12 +34,19 @@
 		<HxGridColumn TItem="CultureInfo" HeaderText="EnglishName" ItemTextSelector="@(item => item.EnglishName)" SortKeySelector="@(item => item.EnglishName)"  />
 	</Columns>
 </HxGrid>
-
+*@
 @code {
-	private List<CultureInfo> localCultureInfos = CultureInfo.GetCultures(CultureTypes.AllCultures).ToList();
+	private bool hasResults = false;
 
-	private Task<GridDataProviderResult<CultureInfo>> GetGridData(GridDataProviderRequest<CultureInfo> request)
+	public void DisplayResults()
 	{
-		return Task.FromResult(request.ApplyTo(localCultureInfos));
+		hasResults = ConnectionService.Table?.Rows?.Count > 0;
+		StateHasChanged();
 	}
+	//private List<CultureInfo> localCultureInfos = CultureInfo.GetCultures(CultureTypes.AllCultures).ToList();
+
+	//private Task<GridDataProviderResult<CultureInfo>> GetGridData(GridDataProviderRequest<CultureInfo> request)
+	//{
+	//	return Task.FromResult(request.ApplyTo(localCultureInfos));
+	//}
 }

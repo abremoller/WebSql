@@ -44,7 +44,7 @@
 
         Directory[] dirs = new Directory[] { server };
 
-        return dirs;
+        return dataBases.ToArray();
     }
 
     private Directory[] CreateSubDirectories(Database database)
