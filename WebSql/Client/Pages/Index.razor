@@ -2,6 +2,7 @@
 @using WebSql.Client.Components
 @using static WebSql.Client.Pages.ConnectionDialog
 @inject IConnectionService ConnectionService
+@inject IHxMessengerService Messenger
 
 <div class="container-fluid">
 	<div class="row">
@@ -9,7 +10,7 @@
 			<HxSidebar>
 				<ItemsTemplate>
 					<HxSidebarItem Text="Server" Icon="BootstrapIcon.Cloud">
-						@if(connected)
+						@if(connected && ConnectionService.ObjectExplorer != null)
 						{
 							<ObjectExplorer @ref="objectExplorer" />
 						}
@@ -93,13 +94,13 @@
 	ResultsGrid ResultsGrid;
 	private bool connected;
 
-	protected override void OnAfterRender(bool firstRender)
+	protected override async Task OnAfterRenderAsync(bool firstRender)
 	{
 		if (firstRender)
 		{
 			connectionStringDialog.OnDialogClose += ConnectionDialogClosed;
-			connectionStringDialog.Show();
-			codeEditorAccordion.ExpandAsync();
+			await connectionStringDialog.Show();
+			await codeEditorAccordion.ExpandAsync();
 		}
 	}
 
@@ -108,21 +109,21 @@
 		try
 		{
 			Console.WriteLine("[Index] ConnectionDialogClosed called");
-			connected = true;
 			
 			if (ConnectionService.ObjectExplorer != null)
 			{
-				Console.WriteLine("[Index] Adding ObjectExplorer to UI");
+				Console.WriteLine("[Index] Setting connected = true");
+				connected = true;
+				StateHasChanged();
+				
+				Console.WriteLine("[Index] Adding ObjectExplorer data");
 				objectExplorer?.AddObjectExplorer(ConnectionService.ObjectExplorer);
+				Console.WriteLine("[Index] ConnectionDialogClosed complete");
 			}
 			else
 			{
 				Console.WriteLine("[Index] WARNING: ConnectionService.ObjectExplorer is null!");
 			}
-			
-			Console.WriteLine("[Index] Calling StateHasChanged");
-			StateHasChanged();
-			Console.WriteLine("[Index] ConnectionDialogClosed complete");
 		}
 		catch (Exception ex)
 		{
@@ -132,16 +133,31 @@
 
 	public async void RunQuery()
 	{
-		var (rowCount, errorMessage) = await ConnectionService.RunQuery(codeEditor.Text);
-		if (string.IsNullOrEmpty(errorMessage))
+		try
 		{
-			if (rowCount > 0)
-				ResultsGrid.DisplayResults();
+			var (rowCount, errorMessage) = await ConnectionService.RunQuery(codeEditor.Text);
+			if (string.IsNullOrEmpty(errorMessage))
+			{
+				if (rowCount > 0)
+				{
+					ResultsGrid.DisplayResults();
+					Messenger.AddInformation($"Query executed successfully. {rowCount} row(s) returned.");
+				}
+				else
+				{
+					Messenger.AddInformation("Query executed successfully. No rows returned.");
+				}
+			}
+			else
+			{
+				Console.WriteLine($"Query error: {errorMessage}");
+				Messenger.AddError("Query Error", errorMessage);
+			}
 		}
-		else
+		catch (Exception ex)
 		{
-			// TODO: Display error message to user
-			Console.WriteLine($"Query error: {errorMessage}");
+			Console.WriteLine($"[Index] RunQuery exception: {ex.Message}");
+			Messenger.AddError("Error", $"Failed to execute query: {ex.Message}");
 		}
 	}
 

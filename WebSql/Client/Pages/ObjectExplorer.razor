@@ -3,6 +3,8 @@
 
 <div class="row">
     <div class="col-lg-12" style="height: 400px">
+        @if (fileSystem != null)
+        {
             <HxTreeView 
                     TItem="Directory"
                     @bind-SelectedItem="selectedDirectory"
@@ -11,31 +13,26 @@
                     ItemTitleSelector="@(p => p.Name)"
                     ItemChildrenSelector="@(p => p.Subdirectories)"
                     ItemIconSelector="@(p => p.Icon)" />
+        }
     </div>
 </div>
 
 @code {
     HxTreeView<Directory> treeview;
-    private Directory selectedDirectory;
-    private Directory[] fileSystem;
+    private Directory? selectedDirectory;
+    private Directory[]? fileSystem;
 
-    protected override void OnInitialized()
-    {
-        if (ConnectionService.ObjectExplorer != null)
-        {
-            AddObjectExplorer(ConnectionService.ObjectExplorer);
-        }
-    }
-
-    public void AddObjectExplorer(WebSql.Shared.ObjectExplorer objectExplorer)
+    public void AddObjectExplorer(WebSql.Shared.ObjectExplorer? objectExplorer)
     {
         if (objectExplorer == null) return;
         
+        Console.WriteLine("[ObjectExplorer] AddObjectExplorer called");
         fileSystem = ToTreeviewFormat(objectExplorer);
         if (fileSystem != null && fileSystem.Length > 0)
         {
             selectedDirectory = fileSystem.First();
         }
+        Console.WriteLine($"[ObjectExplorer] Set {fileSystem?.Length ?? 0} databases");
         StateHasChanged();
     }
 

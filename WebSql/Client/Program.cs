@@ -14,5 +14,6 @@ builder.Services.AddScoped<IConnectionService, ConnectionService>();
 builder.Services.AddBlazoredLocalStorage();
 
 builder.Services.AddHxServices();
+builder.Services.AddHxMessenger();
 
 await builder.Build().RunAsync();
