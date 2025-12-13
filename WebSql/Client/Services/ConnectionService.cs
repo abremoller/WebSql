@@ -21,6 +21,7 @@ namespace WebSql.Client.Services
 		public Table? Table => _table;
 		public ObjectExplorer? ObjectExplorer => _objectExplorer;
 		public string? SessionToken => _sessionToken;
+		public bool Connected => !string.IsNullOrEmpty(_sessionToken);
 		public string SelectedDatabase 
 		{ 
 			get => _selectedDatabase; 

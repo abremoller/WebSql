@@ -1,0 +1,481 @@
+@page "/dataeditor"
+@using WebSql.Shared
+@using Microsoft.JSInterop
+@using static WebSql.Client.Pages.ConnectionDialog
+@inject IConnectionService ConnectionService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Data Editor - WebSql</PageTitle>
+
+<ConnectionDialog @ref="connectionDialog" />
+
+<div class="container-fluid mt-3">
+    <div class="row mb-3">
+        <div class="col">
+            <h3>Data Editor</h3>
+            <p class="text-muted">Edit table data without writing SQL</p>
+        </div>
+    </div>
+
+    @if (!ConnectionService.Connected)
+    {
+        <HxAlert Color="ThemeColor.Warning">
+            <HxIcon Icon="BootstrapIcon.ExclamationTriangle" /> Please connect to a database first.
+            <HxButton Color="ThemeColor.Primary" OnClick="ShowConnectionDialog" CssClass="mt-2">
+                Connect Now
+            </HxButton>
+        </HxAlert>
+    }
+    else
+    {
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <HxSelect Label="Database"
+                          @bind-Value="selectedDatabase"
+                          Data="@databases"
+                          Nullable="false"
+                          TextSelector="@(x => x.Name)"
+                          ValueSelector="@(x => x.Name)"
+                          OnValueChanged="OnDatabaseChanged" />
+            </div>
+            <div class="col-md-6">
+                <HxSelect Label="Table"
+                          @bind-Value="selectedTable"
+                          Data="@tables"
+                          Nullable="false"
+                          TextSelector="@(x => $"{x.Schema}.{x.Name}")"
+                          ValueSelector="@(x => x)"
+                          OnValueChanged="OnTableChanged"
+                          Enabled="@(selectedDatabase != null)" />
+            </div>
+        </div>
+
+        @if (selectedTable != null)
+        {
+            <div class="row mb-3">
+                <div class="col">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><strong>@selectedTable.Schema.@selectedTable.Name</strong> - @columns.Count columns</span>
+                            <div>
+                                <HxButton Color="ThemeColor.Primary" OnClick="LoadData" Icon="BootstrapIcon.ArrowRepeat">
+                                    Load Data
+                                </HxButton>
+                                <HxButton Color="ThemeColor.Success" OnClick="ShowAddForm" Icon="BootstrapIcon.PlusCircle" CssClass="ms-2">
+                                    Add New Row
+                                </HxButton>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            @if (whereClause == null)
+                            {
+                                <HxAlert Color="ThemeColor.Info">
+                                    <HxIcon Icon="BootstrapIcon.InfoCircle" /> 
+                                    <strong>Safety First:</strong> Please specify a WHERE clause to limit the rows you want to edit.
+                                </HxAlert>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">WHERE clause (without the WHERE keyword)</label>
+                                    <HxInputText @bind-Value="whereClauseInput" 
+                                                 Placeholder="e.g., CustomerID = 5 OR Status = 'Active'"
+                                                 CssClass="font-monospace" />
+                                    <small class="form-text text-muted">
+                                        Example: <code>CustomerID = 5</code> or <code>Status = 'Active' AND Country = 'USA'</code>
+                                    </small>
+                                </div>
+                                <HxButton Color="ThemeColor.Primary" OnClick="ApplyWhereClause">
+                                    Apply WHERE Clause
+                                </HxButton>
+                            }
+                            else
+                            {
+                                <div class="alert alert-secondary d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <strong>Active Filter:</strong> <code>WHERE @whereClause</code>
+                                    </span>
+                                    <HxButton Color="ThemeColor.Secondary" Size="ButtonSize.Small" OnClick="ClearWhereClause">
+                                        Change Filter
+                                    </HxButton>
+                                </div>
+
+                                @if (isLoading)
+                                {
+                                    <div class="text-center p-4">
+                                        <div class="spinner-border" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading data...</p>
+                                    </div>
+                                }
+                                else if (rows.Any())
+                                {
+                                    <div class="table-responsive">
+                                        <table class="table table-striped table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 120px;">Actions</th>
+                                                    @foreach (var col in columns)
+                                                    {
+                                                        <th>
+                                                            @col.Name
+                                                            <br />
+                                                            <small class="text-muted">@col.Type</small>
+                                                        </th>
+                                                    }
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var (row, index) in rows.Select((r, i) => (r, i)))
+                                                {
+                                                    <tr>
+                                                        <td>
+                                                            <HxButton Color="ThemeColor.Primary" 
+                                                                      Size="ButtonSize.Small" 
+                                                                      OnClick="@(() => ShowEditForm(index))"
+                                                                      Icon="BootstrapIcon.Pencil"
+                                                                      CssClass="me-1" />
+                                                            <HxButton Color="ThemeColor.Danger" 
+                                                                      Size="ButtonSize.Small" 
+                                                                      OnClick="@(() => DeleteRow(index))"
+                                                                      Icon="BootstrapIcon.Trash" />
+                                                        </td>
+                                                        @foreach (var value in row)
+                                                        {
+                                                            <td>
+                                                                <span title="@value">@TruncateValue(value)</span>
+                                                            </td>
+                                                        }
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                        <div class="mt-2">
+                                            <small class="text-muted">@rows.Count row(s) loaded</small>
+                                        </div>
+                                    </div>
+                                }
+                                else if (!isLoading)
+                                {
+                                    <HxAlert Color="ThemeColor.Info">
+                                        No data loaded. Click "Load Data" to retrieve rows matching your WHERE clause.
+                                    </HxAlert>
+                                }
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<!-- Edit/Add Modal -->
+@if (showEditModal)
+{
+    <HxModal @ref="editModal" Title="@(editingRowIndex.HasValue ? "Edit Row" : "Add New Row")" Size="ModalSize.Large">
+        <BodyTemplate>
+            @if (errorMessage != null)
+            {
+                <HxAlert Color="ThemeColor.Danger">@errorMessage</HxAlert>
+            }
+            
+            <div class="row">
+                @foreach (var (col, index) in columns.Select((c, i) => (c, i)))
+                {
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">
+                            @col.Name
+                            <small class="text-muted">(@col.Type)</small>
+                        </label>
+                        <HxInputText @bind-Value="editValues[index]" 
+                                     Placeholder="@col.Type" />
+                    </div>
+                }
+            </div>
+        </BodyTemplate>
+        <FooterTemplate>
+            <HxButton Color="ThemeColor.Secondary" OnClick="HideEditForm">Cancel</HxButton>
+            <HxButton Color="ThemeColor.Primary" OnClick="SaveRow">
+                @(editingRowIndex.HasValue ? "Update" : "Insert")
+            </HxButton>
+        </FooterTemplate>
+    </HxModal>
+}
+
+@code {
+    private ConnectionDialog connectionDialog = null!;
+    
+    private List<Database> databases = new();
+    private List<Table> tables = new();
+    private List<Column> columns = new();
+    private List<List<string>> rows = new();
+    
+    private string? selectedDatabase;
+    private Table? selectedTable;
+    private string? whereClauseInput;
+    private string? whereClause;
+    private bool isLoading;
+    
+    private bool showEditModal;
+    private HxModal? editModal;
+    private int? editingRowIndex;
+    private List<string> editValues = new();
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            connectionDialog.OnDialogClose += ConnectionDialogClosed;
+            
+            // If not connected, show the dialog automatically
+            if (!ConnectionService.Connected)
+            {
+                await connectionDialog.Show();
+            }
+            else
+            {
+                LoadDatabases();
+            }
+        }
+    }
+
+    private void ConnectionDialogClosed()
+    {
+        if (ConnectionService.Connected && ConnectionService.ObjectExplorer != null)
+        {
+            LoadDatabases();
+            StateHasChanged();
+        }
+    }
+
+    private void LoadDatabases()
+    {
+        if (ConnectionService.Connected && ConnectionService.ObjectExplorer != null)
+        {
+            databases = ConnectionService.ObjectExplorer.Server.Databases.ToList();
+        }
+    }
+
+    private async Task ShowConnectionDialog()
+    {
+        await connectionDialog.Show();
+    }
+
+    private void OnDatabaseChanged(string? dbName)
+    {
+        if (dbName != null)
+        {
+            var db = databases.FirstOrDefault(d => d.Name == dbName);
+            if (db != null)
+            {
+                tables = db.Tables;
+                selectedTable = null;
+                whereClause = null;
+                whereClauseInput = null;
+                rows.Clear();
+            }
+        }
+    }
+
+    private void OnTableChanged(Table? table)
+    {
+        if (table != null)
+        {
+            columns = table.Columns;
+            whereClause = null;
+            whereClauseInput = null;
+            rows.Clear();
+        }
+    }
+
+    private void ApplyWhereClause()
+    {
+        if (!string.IsNullOrWhiteSpace(whereClauseInput))
+        {
+            whereClause = whereClauseInput.Trim();
+        }
+    }
+
+    private void ClearWhereClause()
+    {
+        whereClause = null;
+        whereClauseInput = null;
+        rows.Clear();
+    }
+
+    private async Task LoadData()
+    {
+        if (selectedTable == null || string.IsNullOrWhiteSpace(whereClause))
+            return;
+
+        isLoading = true;
+        errorMessage = null;
+        
+        try
+        {
+            // Build SELECT query
+            var query = $"SELECT * FROM [{selectedTable.Schema}].[{selectedTable.Name}] WHERE {whereClause}";
+            
+            await ConnectionService.ChangeDatabaseAsync(selectedDatabase!);
+            var (rowCount, error, requiresConfirmation) = await ConnectionService.RunQuery(query, true);
+            
+            if (error != null)
+            {
+                errorMessage = error;
+            }
+            else if (ConnectionService.Table != null)
+            {
+                rows = ConnectionService.Table.Rows;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowAddForm()
+    {
+        editingRowIndex = null;
+        editValues = columns.Select(c => "").ToList();
+        errorMessage = null;
+        showEditModal = true;
+        StateHasChanged();
+        editModal?.ShowAsync();
+    }
+
+    private void ShowEditForm(int rowIndex)
+    {
+        editingRowIndex = rowIndex;
+        editValues = rows[rowIndex].ToList();
+        errorMessage = null;
+        showEditModal = true;
+        StateHasChanged();
+        editModal?.ShowAsync();
+    }
+
+    private void HideEditForm()
+    {
+        showEditModal = false;
+        editModal?.HideAsync();
+        editingRowIndex = null;
+        editValues.Clear();
+        errorMessage = null;
+    }
+
+    private async Task SaveRow()
+    {
+        if (selectedTable == null)
+            return;
+
+        try
+        {
+            string query;
+            
+            if (editingRowIndex.HasValue)
+            {
+                // UPDATE existing row
+                var setClauses = columns.Select((col, i) => 
+                    $"[{col.Name}] = {FormatSqlValue(editValues[i], col.Type)}").ToList();
+                
+                var whereParts = columns.Select((col, i) => 
+                    $"[{col.Name}] = {FormatSqlValue(rows[editingRowIndex.Value][i], col.Type)}").ToList();
+                
+                query = $"UPDATE [{selectedTable.Schema}].[{selectedTable.Name}] SET {string.Join(", ", setClauses)} WHERE {string.Join(" AND ", whereParts)}";
+            }
+            else
+            {
+                // INSERT new row
+                var columnNames = string.Join(", ", columns.Select(c => $"[{c.Name}]"));
+                var values = string.Join(", ", columns.Select((col, i) => FormatSqlValue(editValues[i], col.Type)));
+                
+                query = $"INSERT INTO [{selectedTable.Schema}].[{selectedTable.Name}] ({columnNames}) VALUES ({values})";
+            }
+
+            await ConnectionService.ChangeDatabaseAsync(selectedDatabase!);
+            var (rowCount, error, requiresConfirmation) = await ConnectionService.RunQuery(query, false);
+            
+            if (error != null)
+            {
+                errorMessage = error;
+            }
+            else
+            {
+                HideEditForm();
+                await LoadData(); // Refresh data
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteRow(int rowIndex)
+    {
+        if (selectedTable == null)
+            return;
+
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            "Are you sure you want to delete this row? This action cannot be undone.");
+        
+        if (!confirmed)
+            return;
+
+        try
+        {
+            var whereParts = columns.Select((col, i) => 
+                $"[{col.Name}] = {FormatSqlValue(rows[rowIndex][i], col.Type)}").ToList();
+            
+            var query = $"DELETE FROM [{selectedTable.Schema}].[{selectedTable.Name}] WHERE {string.Join(" AND ", whereParts)}";
+
+            await ConnectionService.ChangeDatabaseAsync(selectedDatabase!);
+            var (rowCount, error, requiresConfirmation) = await ConnectionService.RunQuery(query, false);
+            
+            if (error != null)
+            {
+                errorMessage = error;
+            }
+            else
+            {
+                await LoadData(); // Refresh data
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private string FormatSqlValue(string value, string type)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "NULL";
+
+        var lowerType = type.ToLower();
+        
+        // String types need quotes
+        if (lowerType.Contains("char") || lowerType.Contains("text") || 
+            lowerType.Contains("date") || lowerType.Contains("time"))
+        {
+            var escapedValue = value.Replace("'", "''");
+            return $"'{escapedValue}'"; 
+        }
+        
+        // Numeric and other types don't need quotes
+        return value;
+    }
+
+    private string TruncateValue(string value, int maxLength = 50)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+            return value;
+        
+        return value.Substring(0, maxLength) + "...";
+    }
+}

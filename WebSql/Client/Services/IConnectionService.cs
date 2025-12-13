@@ -6,6 +6,7 @@ namespace WebSql.Client.Services
     {
         ConnectionDetails ConnectionDetails { get; set; }
         string? SessionToken { get; }
+        bool Connected { get; }
         string SelectedDatabase { get; set; }
         IEnumerable<string> DatabaseNames { get; set; }
         ObjectExplorer? ObjectExplorer { get; }
