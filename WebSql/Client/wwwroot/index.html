@@ -27,6 +27,17 @@
     <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
     <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+        window.setupKeyboardShortcuts = function (dotNetHelper) {
+            document.addEventListener('keydown', function (e) {
+                // F5 to execute query
+                if (e.key === 'F5') {
+                    e.preventDefault();
+                    dotNetHelper.invokeMethodAsync('ExecuteQueryShortcut');
+                }
+            });
+        };
+    </script>
 </body>
 
 </html>

@@ -105,6 +105,18 @@
 			connectionStringDialog.OnDialogClose += ConnectionDialogClosed;
 			await connectionStringDialog.Show();
 			await codeEditorAccordion.ExpandAsync();
+			
+			// Set up keyboard shortcut listener
+			await JSRuntime.InvokeVoidAsync("setupKeyboardShortcuts", DotNetObjectReference.Create(this));
+		}
+	}
+	
+	[JSInvokable]
+	public async Task ExecuteQueryShortcut()
+	{
+		if (connected)
+		{
+			await RunQuery();
 		}
 	}
 
