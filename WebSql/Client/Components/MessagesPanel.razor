@@ -1,0 +1,78 @@
+@using System.Text
+
+<div class="messages-panel" style="height: 300px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 13px; background-color: #f8f9fa; padding: 10px; border-radius: 0.25rem;">
+    @if (messages.Count == 0)
+    {
+        <div class="text-muted">No messages to display. Run a query to see execution details.</div>
+    }
+    else
+    {
+        @foreach (var msg in messages)
+        {
+            <div class="message-item mb-2" style="@GetMessageStyle(msg.Type)">
+                <strong>[@msg.Timestamp.ToString("HH:mm:ss")]</strong> @msg.Text
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<QueryMessage> messages = new();
+
+    public void AddMessage(string text, MessageType type = MessageType.Info)
+    {
+        messages.Add(new QueryMessage
+        {
+            Text = text,
+            Type = type,
+            Timestamp = DateTime.Now
+        });
+        StateHasChanged();
+    }
+
+    public void AddSuccessMessage(int rowsAffected, double executionTimeMs)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"({rowsAffected} row(s) affected)");
+        sb.AppendLine($"Execution time: {executionTimeMs:F2} ms");
+        
+        AddMessage(sb.ToString(), MessageType.Success);
+    }
+
+    public void AddErrorMessage(string errorText)
+    {
+        AddMessage($"Error: {errorText}", MessageType.Error);
+    }
+
+    public void Clear()
+    {
+        messages.Clear();
+        StateHasChanged();
+    }
+
+    private string GetMessageStyle(MessageType type)
+    {
+        return type switch
+        {
+            MessageType.Success => "color: #28a745; white-space: pre-wrap;",
+            MessageType.Error => "color: #dc3545; white-space: pre-wrap;",
+            MessageType.Warning => "color: #ffc107; white-space: pre-wrap;",
+            _ => "color: #6c757d; white-space: pre-wrap;"
+        };
+    }
+
+    public class QueryMessage
+    {
+        public string Text { get; set; } = string.Empty;
+        public MessageType Type { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+
+    public enum MessageType
+    {
+        Info,
+        Success,
+        Warning,
+        Error
+    }
+}

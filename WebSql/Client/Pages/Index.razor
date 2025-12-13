@@ -70,7 +70,9 @@
 				<TitleTemplate>
 					<HxCardText><HxIcon Icon="BootstrapIcon.PcDisplay" />Messages</HxCardText>
 				</TitleTemplate>
-				<Content></Content>
+				<Content>
+					<MessagesPanel @ref="messagesPanel" />
+				</Content>
 			</HxTab>
 		</HxTabPanel>
 	</div>
@@ -92,6 +94,7 @@
 	CodeEditor codeEditor;
 	ObjectExplorer objectExplorer;
 	ResultsGrid ResultsGrid;
+	MessagesPanel messagesPanel;
 	private bool connected;
 
 	protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -135,10 +138,16 @@
 	{
 		try
 		{
+			messagesPanel?.Clear();
+			
 			var queryText = await codeEditor.GetValue();
+			messagesPanel?.AddMessage($"Executing query...", MessagesPanel.MessageType.Info);
+			
 			var (rowCount, errorMessage) = await ConnectionService.RunQuery(queryText);
 			if (string.IsNullOrEmpty(errorMessage))
 			{
+				messagesPanel?.AddSuccessMessage(rowCount, ConnectionService.LastQueryExecutionTimeMs);
+				
 				if (rowCount > 0)
 				{
 					ResultsGrid.DisplayResults();
@@ -152,12 +161,14 @@
 			else
 			{
 				Console.WriteLine($"Query error: {errorMessage}");
+				messagesPanel?.AddErrorMessage(errorMessage);
 				Messenger.AddError("Query Error", errorMessage);
 			}
 		}
 		catch (Exception ex)
 		{
 			Console.WriteLine($"[Index] RunQuery exception: {ex.Message}");
+			messagesPanel?.AddErrorMessage(ex.Message);
 			Messenger.AddError("Error", $"Failed to execute query: {ex.Message}");
 		}
 	}
