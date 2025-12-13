@@ -33,7 +33,6 @@
             selectedDirectory = fileSystem.First();
         }
         Console.WriteLine($"[ObjectExplorer] Set {fileSystem?.Length ?? 0} databases");
-        StateHasChanged();
     }
 
     private Directory[] ToTreeviewFormat(WebSql.Shared.ObjectExplorer explorer)

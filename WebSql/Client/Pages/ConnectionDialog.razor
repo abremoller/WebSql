@@ -19,19 +19,18 @@
 					Server name:
 				</div>
 				<div class="col">
-					<HxInputText @bind-Value="serverName" Label="" />
-					@*TODO: Add auto complete*@
-					@*<HxAutosuggest Label=""
-								   Placeholder=""
-								   TItem="string"
-								   TValue="string"
-								   @bind-Value="@serverName"
-								   DataProvider="ProvideSuggestions">
-						
-						<EmptyTemplate>
-							<span class="p-2">Couldn't find any matching locale</span>
-						</EmptyTemplate>
-					</HxAutosuggest>*@
+					<HxInputText @bind-Value="serverName" Label="" Placeholder="Enter server name" />
+					@if (serverDetails.Any())
+					{
+						<small class="text-muted">Recent servers:</small>
+						<select class="form-select" @onchange="OnServerSelected">
+							<option value="">-- Select from history --</option>
+							@foreach (var server in serverDetails)
+							{
+								<option value="@server">@server</option>
+							}
+						</select>
+					}
 				</div>
 			</div>
 			<div class="row g-5">
@@ -91,9 +90,21 @@
 
 	public async Task Show()
 	{
-		//var keys = await LocalStorage.KeysAsync();
-		//foreach(string s in keys.Where(x => x.StartsWith("ServerName")))
-		//	serverDetails.Add(s.Split('=')[1]);
+		// Load connection history from localStorage
+		var history = await LocalStorage.GetItemAsync<List<string>>("ServerHistory");
+		if (history != null)
+		{
+			serverDetails = history;
+		}
+
+		// Load last used credentials if remember details was checked
+		var lastServer = await LocalStorage.GetItemAsync<string>("ServerName");
+		var lastLogin = await LocalStorage.GetItemAsync<string>("Login");
+		
+		if (!string.IsNullOrEmpty(lastServer))
+			serverName = lastServer;
+		if (!string.IsNullOrEmpty(lastLogin))
+			login = lastLogin;
 
 		await connectionDialog.ShowAsync();
 	}
@@ -120,6 +131,16 @@
 				Console.WriteLine("[ConnectionDialog] Calling GetExplorerAsync");
 				bool explorerLoaded = await ConnectionService.GetExplorerAsync();
 				Console.WriteLine($"[ConnectionDialog] GetExplorerAsync returned: {explorerLoaded}");
+				
+				// Add server to connection history (max 10 entries)
+				if (!serverDetails.Contains(serverName))
+				{
+					serverDetails.Insert(0, serverName);
+					if (serverDetails.Count > 10)
+						serverDetails.RemoveAt(10);
+					
+					await LocalStorage.SetItemAsync("ServerHistory", serverDetails);
+				}
 				
 				// Save connection details (but NOT password!)
 				if (rememberDetails && !integratedSecurity)
@@ -158,11 +179,25 @@
 		await connectionDialog.HideAsync();
 	}
 
+	private void OnServerSelected(ChangeEventArgs e)
+	{
+		if (e.Value is string selectedServer && !string.IsNullOrEmpty(selectedServer))
+		{
+			serverName = selectedServer;
+		}
+	}
+
 	private async Task<AutosuggestDataProviderResult<string>> ProvideSuggestions(AutosuggestDataProviderRequest request)
 	{
-		return new AutosuggestDataProviderResult<string>
+		var query = request.UserInput?.ToLower() ?? string.Empty;
+		
+		var filtered = string.IsNullOrEmpty(query) 
+			? serverDetails 
+			: serverDetails.Where(s => s.ToLower().Contains(query)).ToList();
+		
+		return await Task.FromResult(new AutosuggestDataProviderResult<string>
 		{
-			Data = serverDetails
-		};
+			Data = filtered
+		});
 	}
 }
