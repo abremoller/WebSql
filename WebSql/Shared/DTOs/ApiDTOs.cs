@@ -19,6 +19,7 @@ namespace WebSql.Shared.DTOs
     {
         public string SessionToken { get; set; } = string.Empty;
         public string Query { get; set; } = string.Empty;
+        public bool ConfirmedDangerous { get; set; } = false;
     }
 
     public class QueryResponse
@@ -28,6 +29,7 @@ namespace WebSql.Shared.DTOs
         public string? ErrorMessage { get; set; }
         public int RowsAffected { get; set; }
         public double ExecutionTimeMs { get; set; }
+        public bool RequiresConfirmation { get; set; }
     }
 
     public class ObjectExplorerRequest

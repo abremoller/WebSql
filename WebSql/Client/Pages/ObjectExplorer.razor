@@ -5,14 +5,37 @@
     <div class="col-lg-12" style="height: 400px">
         @if (fileSystem != null)
         {
-            <HxTreeView 
-                    TItem="Directory"
-                    @bind-SelectedItem="selectedDirectory"
-                    Items="@fileSystem"
-                    CssClass="border rounded p-2"
-                    ItemTitleSelector="@(p => p.Name)"
-                    ItemChildrenSelector="@(p => p.Subdirectories)"
-                    ItemIconSelector="@(p => p.Icon)" />
+            <div class="border rounded p-2">
+                <ul class="list-unstyled mb-0">
+                    @foreach (var db in fileSystem)
+                    {
+                        var dbId = $"db_{fileSystem.ToList().IndexOf(db)}";
+                        <li class="py-1">
+                            <div @onclick="() => ToggleDatabase(db)" style="cursor: pointer;">
+                                <HxIcon Icon="@(expandedDatabases.Contains(db) ? BootstrapIcon.ChevronDown : BootstrapIcon.ChevronRight)" CssClass="me-1" />
+                                <HxIcon Icon="@BootstrapIcon.Database" CssClass="me-2" />
+                                <span>@db.Name</span>
+                            </div>
+                            @if (expandedDatabases.Contains(db) && db.Database != null)
+                            {
+                                <ul class="list-unstyled ms-4 mt-1">
+                                    @foreach (var table in db.Database.Tables)
+                                    {
+                                        <li class="py-1">
+                                            <HxIcon Icon="@BootstrapIcon.Table" CssClass="me-2" />
+                                            <span class="text-muted">@table.Schema.</span><span>@table.Name</span>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+        else
+        {
+            <div class="text-muted p-2">Loading server explorer...</div>
         }
     </div>
 </div>
@@ -21,18 +44,39 @@
     HxTreeView<Directory> treeview;
     private Directory? selectedDirectory;
     private Directory[]? fileSystem;
+    private HashSet<Directory> expandedDatabases = new HashSet<Directory>();
 
-    public void AddObjectExplorer(WebSql.Shared.ObjectExplorer? objectExplorer)
+    [Parameter]
+    public EventCallback OnDataLoaded { get; set; }
+
+    private void ToggleDatabase(Directory db)
+    {
+        if (expandedDatabases.Contains(db))
+            expandedDatabases.Remove(db);
+        else
+            expandedDatabases.Add(db);
+    }
+
+    private IEnumerable<Directory>? GetChildren(Directory dir)
+    {
+        Console.WriteLine($"[ObjectExplorer] GetChildren called for: {dir.Name}");
+        dir.LoadSubdirectories();
+        Console.WriteLine($"[ObjectExplorer] GetChildren returning {dir.Subdirectories?.Length ?? 0} items");
+        return dir.Subdirectories;
+    }
+
+    public async Task AddObjectExplorerAsync(WebSql.Shared.ObjectExplorer? objectExplorer)
     {
         if (objectExplorer == null) return;
         
-        Console.WriteLine("[ObjectExplorer] AddObjectExplorer called");
         fileSystem = ToTreeviewFormat(objectExplorer);
         if (fileSystem != null && fileSystem.Length > 0)
         {
             selectedDirectory = fileSystem.First();
         }
-        Console.WriteLine($"[ObjectExplorer] Set {fileSystem?.Length ?? 0} databases");
+        
+        // Notify parent that data is loaded
+        await OnDataLoaded.InvokeAsync();
     }
 
     private Directory[] ToTreeviewFormat(WebSql.Shared.ObjectExplorer explorer)
@@ -41,13 +85,10 @@
 
         foreach(var db in explorer.Server.Databases)
         {
-            dataBases.Add(new Directory(db.Name, BootstrapIcon.Server) { Subdirectories = CreateSubDirectories(db) });
+            var dbDir = new Directory(db.Name, BootstrapIcon.Database);
+            dbDir.Database = db;
+            dataBases.Add(dbDir);
         }
-
-        var server = new Directory(explorer.Server.ServerName ?? "Server", BootstrapIcon.Cloud);
-        server.Subdirectories = dataBases.ToArray();
-
-        Directory[] dirs = new Directory[] { server };
 
         return dataBases.ToArray();
     }
@@ -97,20 +138,54 @@
         public Directory(string name, IconBase icon = null, string message = null, ThemeColor? severity = null)
         {
             Name = name;
-            Icon = icon;
+            Icon = icon ?? BootstrapIcon.Folder; // Default icon if none provided
             Message = message;
             Severity = severity;
         }
 
         public string Name { get; }
-
         public IconBase Icon { get; set; }
-
         public string Message { get; set; }
-
         public ThemeColor? Severity { get; set; }
-
         public Directory[] Subdirectories { get; set; }
+        
+        public Database? Database { get; set; }
+        public Table? Table { get; set; }
+
+        public void LoadSubdirectories()
+        {
+            if (Subdirectories != null) return; // Already loaded
+
+            Console.WriteLine($"[ObjectExplorer.Directory] LoadSubdirectories for: {Name}");
+
+            if (Database != null)
+            {
+                Console.WriteLine($"[ObjectExplorer.Directory] Loading {Database.Tables.Count()} tables");
+                // Load Tables folder
+                var tablesDir = new Directory("Tables", BootstrapIcon.Table);
+                tablesDir.Subdirectories = Database.Tables.Select(t => 
+                {
+                    var tableDir = new Directory(t.Name, BootstrapIcon.Table);
+                    tableDir.Table = t;
+                    return tableDir;
+                }).ToArray();
+                
+                Subdirectories = new[] { tablesDir };
+                Console.WriteLine($"[ObjectExplorer.Directory] Loaded Tables folder with {Database.Tables.Count()} items");
+            }
+            else if (Table != null)
+            {
+                Console.WriteLine($"[ObjectExplorer.Directory] Loading {Table.Columns.Count()} columns");
+                // Load Columns folder
+                var columnsDir = new Directory("Columns", BootstrapIcon.Columns);
+                columnsDir.Subdirectories = Table.Columns.Select(c => 
+                    new Directory(c.Name, BootstrapIcon.Columns)
+                ).ToArray();
+                
+                Subdirectories = new[] { columnsDir };
+                Console.WriteLine($"[ObjectExplorer.Directory] Loaded Columns folder with {Table.Columns.Count()} items");
+            }
+        }
     }
 
 }

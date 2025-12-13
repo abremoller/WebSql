@@ -117,41 +117,51 @@ namespace WebSql.Client.Services
 			}
 		}
 
-        public async Task<(int RowCount, string? ErrorMessage)> RunQuery(string query)
+        public async Task<(int RowCount, string? ErrorMessage, bool RequiresConfirmation)> RunQuery(string query, bool confirmedDangerous = false)
         {
 			if (string.IsNullOrEmpty(_sessionToken))
-				return (0, "Not connected");
+				return (0, "Not connected", false);
 
 			try
 			{
 				var request = new QueryRequest 
 				{ 
 					SessionToken = _sessionToken, 
-					Query = query 
+					Query = query,
+					ConfirmedDangerous = confirmedDangerous
 				};
 				
 				var response = await _http.PostAsJsonAsync("api/Query/execute", request);
 
+				// Always try to read the response body for QueryResponse
+				var result = await response.Content.ReadFromJsonAsync<QueryResponse>();
+				
 				if (response.IsSuccessStatusCode)
 				{
-					var result = await response.Content.ReadFromJsonAsync<QueryResponse>();
 					if (result?.Success == true && result.ResultTable != null)
 					{
 						_table = result.ResultTable;
 						LastQueryExecutionTimeMs = result.ExecutionTimeMs;
-						return (result.RowsAffected, null);
+						return (result.RowsAffected, null, false);
 					}
 					else
 					{
-						return (0, result?.ErrorMessage ?? "Unknown error");
+						return (0, result?.ErrorMessage ?? "Unknown error", result?.RequiresConfirmation ?? false);
 					}
 				}
-
-				return (0, $"HTTP {response.StatusCode}");
+				else
+				{
+					// Check if it's a validation error requiring confirmation
+					if (result != null)
+					{
+						return (0, result.ErrorMessage ?? $"HTTP {response.StatusCode}", result.RequiresConfirmation);
+					}
+					return (0, $"HTTP {response.StatusCode}", false);
+				}
 			}
 			catch (Exception ex)
 			{
-				return (0, ex.Message);
+				return (0, ex.Message, false);
 			}
         }
 

@@ -11,8 +11,8 @@
 
 ### 2. SQL Injection Prevention
 - [ ] **Implement parameterized queries** - Replace string concatenation with SqlParameter
-- [ ] **Add query validation** - Sanitize and validate all user input
-- [ ] **Implement query allow/deny lists** - Restrict dangerous SQL commands in production
+- [x] **Add query validation** - Sanitize and validate all user input
+- [x] **Implement query allow/deny lists** - Restrict dangerous SQL commands with 3-state mode (Disabled/Prompt/Enabled)
 
 ### 3. API Security
 - [x] **Add authentication middleware** - Protect all API endpoints
@@ -148,7 +148,9 @@ See [AdvancedFeatures.md](AdvancedFeatures.md) for detailed documentation on:
 - **Database Support**: SQL Server (Microsoft.Data.SqlClient 5.1.5)
 - **Deployment Target**: Plesk hosting
 - **Authentication**: JWT with HMAC-SHA256 signing
-- **Security**: Rate limiting, CORS, secure token management
+- **Security**: Rate limiting, CORS, secure token management, dangerous operations protection
+- **Code Editor**: Monaco Editor with SQL syntax highlighting and IntelliSense
+- **Query Feedback**: Messages panel with execution time and rows affected
 
 ## 🎯 Recommended Next Steps
 1. Start with **Critical Security Fixes** (items 1-3)
@@ -156,3 +158,82 @@ See [AdvancedFeatures.md](AdvancedFeatures.md) for detailed documentation on:
 3. Enhance **Query Editor** with Monaco integration (item 7)
 4. Improve **Results Display** and **Object Explorer** (items 8-9)
 5. Plan for **Multi-Database Support** architecture (item 11)
+
+---
+
+## 🔒 Security Features
+
+### Dangerous Operations Protection (3-State Mode)
+
+WebSql includes a `QueryValidator` service that protects against dangerous SQL operations with configurable security levels.
+
+#### Configuration
+
+Set the mode in `appsettings.json`:
+
+```json
+{
+  "Security": {
+    "DangerousOperationsMode": "Prompt"
+  }
+}
+```
+
+#### Security Modes
+
+**1. `Disabled` (Most Secure)**
+- All dangerous operations are blocked immediately
+- Error returned without execution
+- Recommended for production environments
+- No bypass available
+
+**2. `Prompt` (Balanced - Default)**
+- Dangerous operations trigger confirmation dialog
+- User must explicitly approve execution
+- Shows specific dangerous operations detected
+- Best for development/testing environments
+- Provides safety with flexibility
+
+**3. `Enabled` (Least Secure)**
+- All operations allowed without prompting
+- No validation interruptions
+- Use only in controlled environments
+- Suitable for automated scripts or trusted admins
+
+#### Protected Operations
+
+The validator blocks/prompts for:
+- `DROP` statements (DATABASE, TABLE, VIEW, PROCEDURE, FUNCTION)
+- `TRUNCATE` operations
+- System commands (`SHUTDOWN`, `DBCC`, `xp_cmdshell`, `sp_configure`)
+- `BACKUP` / `RESTORE` operations
+- `DELETE` without `WHERE` clause
+- `UPDATE` without `WHERE` clause
+
+#### How It Works
+
+1. User submits SQL query
+2. `QueryValidator` analyzes query for dangerous patterns
+3. Based on configured mode:
+   - **Disabled**: Returns error immediately
+   - **Prompt**: Returns `RequiresConfirmation=true` to client
+   - **Enabled**: Executes without interruption
+4. If confirmation required, JavaScript dialog shows warning
+5. User confirms or cancels
+6. If confirmed, query resubmitted with `ConfirmedDangerous=true`
+7. Validator allows execution of confirmed dangerous queries
+
+#### Logging
+
+All dangerous query attempts are logged regardless of mode:
+```
+LogWarning("Dangerous query blocked: {DangerousOp} - Query: {Query}")
+```
+
+#### Files Modified
+- `WebSql/Server/Services/QueryValidator.cs` - Validation logic with mode support
+- `WebSql/Server/Controllers/QueryController.cs` - Injects configuration, uses validator
+- `WebSql/Shared/DTOs/ApiDTOs.cs` - Added `ConfirmedDangerous` and `RequiresConfirmation` fields
+- `WebSql/Client/Services/ConnectionService.cs` - Handles confirmation parameter
+- `WebSql/Client/Pages/Index.razor` - Shows confirmation dialog when needed
+- `WebSql/Server/appsettings.json` - Configuration setting

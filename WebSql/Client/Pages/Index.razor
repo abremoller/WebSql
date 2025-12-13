@@ -3,6 +3,7 @@
 @using static WebSql.Client.Pages.ConnectionDialog
 @inject IConnectionService ConnectionService
 @inject IHxMessengerService Messenger
+@inject IJSRuntime JSRuntime
 
 <div class="container-fluid">
 	<div class="row">
@@ -12,7 +13,7 @@
 					<HxSidebarItem Text="Server" Icon="BootstrapIcon.Cloud">
 						@if(connected && ConnectionService.ObjectExplorer != null)
 						{
-							<ObjectExplorer @ref="objectExplorer" />
+							<ObjectExplorer @ref="objectExplorer" OnDataLoaded="OnObjectExplorerDataLoaded" />
 						}
 					</HxSidebarItem>
 					<HxSidebarItem Text="Connect" Icon="BootstrapIcon.CloudArrowUp">
@@ -44,7 +45,7 @@
 										}
 									</HxDropdownMenu>
 								</HxDropdownButtonGroup>
-								<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="RunQuery"/>
+								<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="() => RunQuery()"/>
 							</HxButtonGroup>
 						}
 					<CodeEditor @ref="codeEditor" />
@@ -107,7 +108,7 @@
 		}
 	}
 
-	public void ConnectionDialogClosed()
+		public void ConnectionDialogClosed()
 	{
 		try
 		{
@@ -119,9 +120,8 @@
 				connected = true;
 				StateHasChanged();
 				
-				Console.WriteLine("[Index] Adding ObjectExplorer data");
-				objectExplorer?.AddObjectExplorer(ConnectionService.ObjectExplorer);
-				Console.WriteLine("[Index] ConnectionDialogClosed complete");
+				// Queue the async work
+				_ = LoadObjectExplorerAsync();
 			}
 			else
 			{
@@ -134,7 +134,29 @@
 		}
 	}
 
-	public async void RunQuery()
+	private async Task LoadObjectExplorerAsync()
+	{
+		try
+		{
+			// Small delay to allow component to render
+			await Task.Delay(10);
+			
+			Console.WriteLine($"[Index] objectExplorer ref is {(objectExplorer == null ? "NULL" : "set")}");
+			Console.WriteLine("[Index] Adding ObjectExplorer data");
+			if (objectExplorer != null)
+			{
+				await objectExplorer.AddObjectExplorerAsync(ConnectionService.ObjectExplorer);
+			}
+			
+			Console.WriteLine("[Index] LoadObjectExplorerAsync complete");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"[Index] Exception in LoadObjectExplorerAsync: {ex.Message}\n{ex.StackTrace}");
+		}
+	}
+
+	public async Task RunQuery(bool confirmedDangerous = false)
 	{
 		try
 		{
@@ -143,7 +165,24 @@
 			var queryText = await codeEditor.GetValue();
 			messagesPanel?.AddMessage($"Executing query...", MessagesPanel.MessageType.Info);
 			
-			var (rowCount, errorMessage) = await ConnectionService.RunQuery(queryText);
+			var (rowCount, errorMessage, requiresConfirmation) = await ConnectionService.RunQuery(queryText, confirmedDangerous);
+			
+			if (requiresConfirmation)
+			{
+				var confirmMessage = $"⚠️ DANGEROUS OPERATION\n\n{errorMessage}\n\nThis operation could result in data loss or system changes.\n\nAre you sure you want to proceed?";
+				var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", confirmMessage);
+				
+				if (confirmed)
+				{
+					await RunQuery(confirmedDangerous: true);
+				}
+				else
+				{
+					messagesPanel?.AddMessage("Query execution cancelled by user.", MessagesPanel.MessageType.Warning);
+				}
+				return;
+			}
+			
 			if (string.IsNullOrEmpty(errorMessage))
 			{
 				messagesPanel?.AddSuccessMessage(rowCount, ConnectionService.LastQueryExecutionTimeMs);
@@ -173,8 +212,15 @@
 		}
 	}
 
-	private async void ChangeSelectedDatabase(string selectedItem)
+	private async Task ChangeSelectedDatabase(string selectedItem)
 	{
 		await ConnectionService.ChangeDatabaseAsync(selectedItem);
+		StateHasChanged();
+	}
+
+	private void OnObjectExplorerDataLoaded()
+	{
+		Console.WriteLine("[Index] OnObjectExplorerDataLoaded - triggering StateHasChanged");
+		StateHasChanged();
 	}
 }

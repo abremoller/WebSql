@@ -79,27 +79,29 @@ namespace WebSql.Server
 		var (dt, _, _) = await sql.RunQueryAsync(__GetTables);
 
 		DataView view = new DataView(dt);
-		DataTable distinctValues = view.ToTable(true, "TABLE_NAME");
+		DataTable distinctValues = view.ToTable(true, "TABLE_SCHEMA", "TABLE_NAME");
 
 		foreach (DataRow dr in distinctValues.Rows)
 		{
 			string? tableName = dr["TABLE_NAME"]?.ToString();
-			if (!string.IsNullOrEmpty(tableName))
+			string? schemaName = dr["TABLE_SCHEMA"]?.ToString();
+			if (!string.IsNullOrEmpty(tableName) && !string.IsNullOrEmpty(schemaName))
 			{
-				db.Tables.Add(new Table() { Name = tableName, Columns = GetColumns(dt, tableName) });
+				db.Tables.Add(new Table() { Name = tableName, Schema = schemaName, Columns = GetColumns(dt, schemaName, tableName) });
 			}
 		}
 	}
 
-	private List<Column> GetColumns(DataTable dt, string tableName)
+	private List<Column> GetColumns(DataTable dt, string schemaName, string tableName)
         {
 			List<Column> columns = new List<Column>();
 
 			try
 			{
-				// Escape single quotes in table name to prevent SQL injection in DataTable.Select
+				// Escape single quotes to prevent SQL injection in DataTable.Select
+				var escapedSchemaName = schemaName.Replace("'", "''");
 				var escapedTableName = tableName.Replace("'", "''");
-				var columnDs = dt.Select($"TABLE_NAME = '{escapedTableName}'");
+				var columnDs = dt.Select($"TABLE_SCHEMA = '{escapedSchemaName}' AND TABLE_NAME = '{escapedTableName}'");
 				foreach (DataRow dr in columnDs)
 				{
 					var columnName = dr["COLUMN_NAME"]?.ToString();
@@ -111,7 +113,7 @@ namespace WebSql.Server
 			}
 			catch (Exception ex)
             {
-				Console.WriteLine($"Error getting columns for table {tableName}: {ex.Message}");
+				Console.WriteLine($"Error getting columns for table {schemaName}.{tableName}: {ex.Message}");
             }
 
 			return columns;

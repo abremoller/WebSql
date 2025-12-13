@@ -10,11 +10,17 @@ namespace WebSql.Server.Controllers
     {
         private readonly IConnectionManager _connectionManager;
         private readonly ILogger<QueryController> _logger;
+        private readonly QueryValidator _queryValidator;
 
-        public QueryController(IConnectionManager connectionManager, ILogger<QueryController> logger)
+        public QueryController(IConnectionManager connectionManager, ILogger<QueryController> logger, IConfiguration configuration)
         {
             _connectionManager = connectionManager;
             _logger = logger;
+            
+            // Read security mode from configuration
+            var modeString = configuration["Security:DangerousOperationsMode"] ?? "Prompt";
+            var mode = Enum.Parse<DangerousOperationsMode>(modeString, ignoreCase: true);
+            _queryValidator = new QueryValidator(mode);
         }
 
         [HttpPost("execute")]
@@ -29,6 +35,28 @@ namespace WebSql.Server.Controllers
                         Success = false,
                         ErrorMessage = "Invalid or expired session"
                     });
+                }
+
+                // Validate query for dangerous operations
+                var validationResult = _queryValidator.Validate(request.Query, request.ConfirmedDangerous);
+                if (!validationResult.IsValid)
+                {
+                    _logger.LogWarning("Dangerous query blocked: {DangerousOp} - Query: {Query}", 
+                        validationResult.DangerousOperation, 
+                        request.Query.Substring(0, Math.Min(100, request.Query.Length)));
+                    
+                    return BadRequest(new QueryResponse
+                    {
+                        Success = false,
+                        ErrorMessage = validationResult.ErrorMessage,
+                        RequiresConfirmation = validationResult.RequiresConfirmation
+                    });
+                }
+
+                // Log warning if query has warnings
+                if (!string.IsNullOrEmpty(validationResult.WarningMessage))
+                {
+                    _logger.LogWarning("Query warning: {Warning}", validationResult.WarningMessage);
                 }
 
                 var connectionString = _connectionManager.GetConnectionString(request.SessionToken);

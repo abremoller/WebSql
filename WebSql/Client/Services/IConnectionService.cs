@@ -14,7 +14,7 @@ namespace WebSql.Client.Services
 
         Task<bool> ConnectAsync();
         Task<bool> GetExplorerAsync();
-        Task<(int RowCount, string? ErrorMessage)> RunQuery(string query);
+        Task<(int RowCount, string? ErrorMessage, bool RequiresConfirmation)> RunQuery(string query, bool confirmedDangerous = false);
         Task<bool> ChangeDatabaseAsync(string databaseName);
         Task DisconnectAsync();
     }
