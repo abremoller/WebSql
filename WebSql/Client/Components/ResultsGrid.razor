@@ -1,8 +1,13 @@
 ﻿@using System.Globalization
+@using System.Text
 @inject IConnectionService ConnectionService
+@inject IJSRuntime JSRuntime
 
 @if (hasResults)
 {
+	<div class="mb-2">
+		<HxButton Text="Export to CSV" Icon="BootstrapIcon.Download" Color="ThemeColor.Secondary" Size="ButtonSize.Small" OnClick="ExportToCsv" />
+	</div>
 	<table class="table table-bordered">
 		<thead>
 			<tr>
@@ -42,6 +47,46 @@
 	{
 		hasResults = ConnectionService.Table?.Rows?.Count > 0;
 		StateHasChanged();
+	}
+
+	private async Task ExportToCsv()
+	{
+		if (ConnectionService.Table == null || ConnectionService.Table.Rows == null)
+			return;
+
+		var csv = new StringBuilder();
+		
+		// Add headers
+		var headers = ConnectionService.Table.Columns.Select(c => EscapeCsvField(c.Name));
+		csv.AppendLine(string.Join(",", headers));
+		
+		// Add rows
+		foreach (var row in ConnectionService.Table.Rows)
+		{
+			var fields = row.Select(field => EscapeCsvField(field));
+			csv.AppendLine(string.Join(",", fields));
+		}
+		
+		// Download the file
+		var fileName = $"query_results_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+		var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+		var base64 = Convert.ToBase64String(bytes);
+		
+		await JSRuntime.InvokeVoidAsync("downloadFile", fileName, base64);
+	}
+
+	private string EscapeCsvField(string field)
+	{
+		if (string.IsNullOrEmpty(field))
+			return "\"\"";
+		
+		// If field contains comma, quote, or newline, wrap in quotes and escape quotes
+		if (field.Contains(",") || field.Contains("\"") || field.Contains("\n") || field.Contains("\r"))
+		{
+			return "\"" + field.Replace("\"", "\"\"") + "\"";
+		}
+		
+		return field;
 	}
 	//private List<CultureInfo> localCultureInfos = CultureInfo.GetCultures(CultureTypes.AllCultures).ToList();
 
