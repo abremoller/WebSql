@@ -34,6 +34,8 @@ namespace WebSql.Client.Services
 		{
 			try
 			{
+				Console.WriteLine($"[ConnectionService] Attempting connection to {ConnectionDetails.ServerName}");
+				
 				var request = new ConnectRequest
 				{
 					ServerName = ConnectionDetails.ServerName,
@@ -43,21 +45,30 @@ namespace WebSql.Client.Services
 				};
 
 				var response = await _http.PostAsJsonAsync("api/Connection/connect", request);
+				Console.WriteLine($"[ConnectionService] Connect response: {response.StatusCode}");
 				
 				if (response.IsSuccessStatusCode)
 				{
 					var result = await response.Content.ReadFromJsonAsync<ConnectResponse>();
+					Console.WriteLine($"[ConnectionService] Connect result: Success={result?.Success}, Token={result?.SessionToken?.Substring(0, 10)}...");
+					
 					if (result?.Success == true)
 					{
 						_sessionToken = result.SessionToken;
 						return true;
 					}
 				}
+				else
+				{
+					var errorContent = await response.Content.ReadAsStringAsync();
+					Console.WriteLine($"[ConnectionService] Connect failed: {errorContent}");
+				}
 
 				return false;
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.WriteLine($"[ConnectionService] Connect exception: {ex.Message}\n{ex.StackTrace}");
 				return false;
 			}
 		}
@@ -65,28 +76,43 @@ namespace WebSql.Client.Services
         public async Task<bool> GetExplorerAsync()
 		{
 			if (string.IsNullOrEmpty(_sessionToken))
+			{
+				Console.WriteLine("[ConnectionService] GetExplorer: No session token");
 				return false;
+			}
 
 			try
 			{
+				Console.WriteLine("[ConnectionService] Requesting object explorer");
+				
 				var request = new ObjectExplorerRequest { SessionToken = _sessionToken };
 				var response = await _http.PostAsJsonAsync("api/Query/object-explorer", request);
+				Console.WriteLine($"[ConnectionService] Explorer response: {response.StatusCode}");
 
 				if (response.IsSuccessStatusCode)
 				{
 					var result = await response.Content.ReadFromJsonAsync<ObjectExplorerResponse>();
+					Console.WriteLine($"[ConnectionService] Explorer result: Success={result?.Success}, Databases={result?.Explorer?.Server?.Databases?.Count}");
+					
 					if (result?.Success == true && result.Explorer != null)
 					{
 						_objectExplorer = result.Explorer;
 						DatabaseNames = _objectExplorer.Server.Databases.Select(x => x.Name).ToList();
+						Console.WriteLine($"[ConnectionService] Explorer loaded: {DatabaseNames.Count()} databases");
 						return true;
 					}
+				}
+				else
+				{
+					var errorContent = await response.Content.ReadAsStringAsync();
+					Console.WriteLine($"[ConnectionService] Explorer failed: {errorContent}");
 				}
 
 				return false;
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.WriteLine($"[ConnectionService] Explorer exception: {ex.Message}\n{ex.StackTrace}");
 				return false;
 			}
 		}

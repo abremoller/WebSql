@@ -33,16 +33,16 @@
 					<BodyTemplate>
 						@if(connected)
 						{
-							<HxDropdown>
-								<HxDropdownToggleButton Color="ThemeColor.Secondary">@ConnectionService.SelectedDatabase</HxDropdownToggleButton>
-								<HxDropdownMenu>
-									@foreach(var v in ConnectionService.DatabaseNames)
-									{
-										<HxDropdownItem OnClick="() => ChangeSelectedDatabase(v)">@v</HxDropdownItem>	
-									}
-								</HxDropdownMenu>
-							</HxDropdown>
 							<HxButtonGroup>
+								<HxDropdownButtonGroup>
+									<HxDropdownToggleButton Color="ThemeColor.Secondary">@ConnectionService.SelectedDatabase</HxDropdownToggleButton>
+									<HxDropdownMenu>
+										@foreach(var v in ConnectionService.DatabaseNames)
+										{
+											<HxDropdownItem OnClick="() => ChangeSelectedDatabase(v)">@v</HxDropdownItem>	
+										}
+									</HxDropdownMenu>
+								</HxDropdownButtonGroup>
 								<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="RunQuery"/>
 							</HxButtonGroup>
 						}
@@ -99,15 +99,35 @@
 		{
 			connectionStringDialog.OnDialogClose += ConnectionDialogClosed;
 			connectionStringDialog.Show();
+			codeEditorAccordion.ExpandAsync();
 		}
-
-		codeEditorAccordion.ExpandAsync();
 	}
 
 	public void ConnectionDialogClosed()
 	{
-		connected = true;
-		StateHasChanged();
+		try
+		{
+			Console.WriteLine("[Index] ConnectionDialogClosed called");
+			connected = true;
+			
+			if (ConnectionService.ObjectExplorer != null)
+			{
+				Console.WriteLine("[Index] Adding ObjectExplorer to UI");
+				objectExplorer?.AddObjectExplorer(ConnectionService.ObjectExplorer);
+			}
+			else
+			{
+				Console.WriteLine("[Index] WARNING: ConnectionService.ObjectExplorer is null!");
+			}
+			
+			Console.WriteLine("[Index] Calling StateHasChanged");
+			StateHasChanged();
+			Console.WriteLine("[Index] ConnectionDialogClosed complete");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"[Index] Exception in ConnectionDialogClosed: {ex.Message}\n{ex.StackTrace}");
+		}
 	}
 
 	public async void RunQuery()

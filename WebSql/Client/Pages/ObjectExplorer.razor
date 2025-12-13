@@ -21,13 +21,22 @@
 
     protected override void OnInitialized()
     {
-        AddObjectExplorer(ConnectionService.ObjectExplorer);
+        if (ConnectionService.ObjectExplorer != null)
+        {
+            AddObjectExplorer(ConnectionService.ObjectExplorer);
+        }
     }
 
     public void AddObjectExplorer(WebSql.Shared.ObjectExplorer objectExplorer)
     {
+        if (objectExplorer == null) return;
+        
         fileSystem = ToTreeviewFormat(objectExplorer);
-        selectedDirectory = fileSystem.First();
+        if (fileSystem != null && fileSystem.Length > 0)
+        {
+            selectedDirectory = fileSystem.First();
+        }
+        StateHasChanged();
     }
 
     private Directory[] ToTreeviewFormat(WebSql.Shared.ObjectExplorer explorer)

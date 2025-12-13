@@ -4,17 +4,19 @@ using WebSql.Shared;
 namespace WebSql.Server.Services
 {
     /// <summary>
-    /// Manages database connections securely with session-based tokens
+    /// Manages database connections securely with JWT-based tokens
     /// </summary>
     public class ConnectionManager : IConnectionManager
     {
         private readonly ConcurrentDictionary<string, ConnectionSession> _sessions;
         private readonly ILogger<ConnectionManager> _logger;
+        private readonly IJwtService _jwtService;
 
-        public ConnectionManager(ILogger<ConnectionManager> logger)
+        public ConnectionManager(ILogger<ConnectionManager> logger, IJwtService jwtService)
         {
             _sessions = new ConcurrentDictionary<string, ConnectionSession>();
             _logger = logger;
+            _jwtService = jwtService;
         }
 
         public Task<string> CreateConnectionAsync(ConnectionDetails connectionDetails)
@@ -27,8 +29,8 @@ namespace WebSql.Server.Services
                     throw new ArgumentException("Server name is required");
                 }
 
-                // Generate a unique session token
-                string sessionToken = Guid.NewGuid().ToString();
+                // Generate a unique session ID
+                string sessionId = Guid.NewGuid().ToString();
 
                 // Build connection string
                 string connectionString = BuildConnectionString(connectionDetails);
@@ -36,19 +38,22 @@ namespace WebSql.Server.Services
                 // Create session
                 var session = new ConnectionSession
                 {
-                    SessionToken = sessionToken,
+                    SessionToken = sessionId,
                     ConnectionString = connectionString,
                     ConnectionDetails = connectionDetails,
                     CreatedAt = DateTime.UtcNow,
                     LastAccessedAt = DateTime.UtcNow
                 };
 
-                _sessions.TryAdd(sessionToken, session);
+                _sessions.TryAdd(sessionId, session);
 
-                _logger.LogInformation("Created new connection session: {SessionToken} for server: {Server}", 
-                    sessionToken, connectionDetails.ServerName);
+                // Generate JWT token
+                string jwtToken = _jwtService.GenerateToken(sessionId, connectionDetails.ServerName);
 
-                return Task.FromResult(sessionToken);
+                _logger.LogInformation("Created new connection session: {SessionId} for server: {Server}", 
+                    sessionId, connectionDetails.ServerName);
+
+                return Task.FromResult(jwtToken);
             }
             catch (Exception ex)
             {
@@ -57,72 +62,86 @@ namespace WebSql.Server.Services
             }
         }
 
-        public string? GetConnectionString(string sessionToken)
+        public string? GetConnectionString(string jwtToken)
         {
-            if (_sessions.TryGetValue(sessionToken, out var session))
+            var sessionId = _jwtService.GetSessionIdFromToken(jwtToken);
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                _logger.LogWarning("Invalid JWT token");
+                return null;
+            }
+
+            if (_sessions.TryGetValue(sessionId, out var session))
             {
                 session.LastAccessedAt = DateTime.UtcNow;
                 return session.ConnectionString;
             }
 
-            _logger.LogWarning("Session token not found: {SessionToken}", sessionToken);
+            _logger.LogWarning("Session not found: {SessionId}", sessionId);
             return null;
         }
 
-        public Task DisconnectAsync(string sessionToken)
+        public Task DisconnectAsync(string jwtToken)
         {
-            if (_sessions.TryRemove(sessionToken, out _))
+            var sessionId = _jwtService.GetSessionIdFromToken(jwtToken);
+            if (string.IsNullOrEmpty(sessionId))
             {
-                _logger.LogInformation("Disconnected session: {SessionToken}", sessionToken);
+                _logger.LogWarning("Invalid JWT token for disconnect");
+                return Task.CompletedTask;
+            }
+
+            if (_sessions.TryRemove(sessionId, out _))
+            {
+                _logger.LogInformation("Disconnected session: {SessionId}", sessionId);
             }
             else
             {
-                _logger.LogWarning("Attempted to disconnect non-existent session: {SessionToken}", sessionToken);
+                _logger.LogWarning("Attempted to disconnect non-existent session: {SessionId}", sessionId);
             }
 
             return Task.CompletedTask;
         }
 
-        public bool ValidateSession(string sessionToken)
+        public bool ValidateSession(string jwtToken)
         {
-            if (string.IsNullOrWhiteSpace(sessionToken))
+            if (string.IsNullOrWhiteSpace(jwtToken))
                 return false;
 
-            if (_sessions.TryGetValue(sessionToken, out var session))
-            {
-                // Check if session has expired (24 hours)
-                if (DateTime.UtcNow - session.CreatedAt > TimeSpan.FromHours(24))
-                {
-                    _sessions.TryRemove(sessionToken, out _);
-                    _logger.LogInformation("Session expired and removed: {SessionToken}", sessionToken);
-                    return false;
-                }
+            // JWT validates expiration automatically
+            var principal = _jwtService.ValidateToken(jwtToken);
+            if (principal == null)
+                return false;
 
-                return true;
-            }
+            var sessionId = principal.FindFirst("sessionId")?.Value;
+            if (string.IsNullOrEmpty(sessionId))
+                return false;
 
-            return false;
+            return _sessions.ContainsKey(sessionId);
         }
 
-        public void UpdateDatabase(string sessionToken, string database)
+        public void UpdateDatabase(string jwtToken, string database)
         {
-            if (_sessions.TryGetValue(sessionToken, out var session))
+            var sessionId = _jwtService.GetSessionIdFromToken(jwtToken);
+            if (string.IsNullOrEmpty(sessionId))
+                return;
+
+            if (_sessions.TryGetValue(sessionId, out var session))
             {
                 var details = session.ConnectionDetails;
                 details.SelectedDatabase = database;
                 session.ConnectionString = BuildConnectionString(details);
                 session.LastAccessedAt = DateTime.UtcNow;
 
-                _logger.LogInformation("Updated database for session {SessionToken} to {Database}", 
-                    sessionToken, database);
+                _logger.LogInformation("Updated database for session {SessionId} to {Database}", 
+                    sessionId, database);
             }
         }
 
         private string BuildConnectionString(ConnectionDetails details)
         {
             string connectionString = details.IntegratedSecurity
-                ? $"Data Source={details.ServerName};Integrated Security=True;"
-                : $"Data Source={details.ServerName};User Id={details.Login};Password={details.Password};";
+                ? $"Data Source={details.ServerName};Integrated Security=True;TrustServerCertificate=True;"
+                : $"Data Source={details.ServerName};User Id={details.Login};Password={details.Password};TrustServerCertificate=True;";
 
             if (!string.IsNullOrWhiteSpace(details.SelectedDatabase))
             {

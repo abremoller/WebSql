@@ -19,6 +19,13 @@ Implement critical security fixes and modernize the architecture to prepare for 
 - ✅ Session expiration (24-hour timeout)
 - ✅ Connection validation on every API call
 - ✅ Execution time metrics in query responses
+- ✅ **JWT Authentication** - Industry-standard token-based auth with signing
+- ✅ **JwtService** - Token generation and validation service
+- ✅ **Rate Limiting** - Native .NET 8 fixed window limiter (100 requests/60 seconds)
+- ✅ **CORS Policies** - Configurable allowed origins
+- ✅ **Configuration system** - appsettings.json for JWT, rate limiting, CORS
+- ✅ **Upgraded to .NET 8.0 LTS** - Latest long-term support framework
+- ✅ **Microsoft.Data.SqlClient** - Replaced vulnerable System.Data.SqlClient
 
 ### Changed
 - ♻️ **REMOVED connection strings from URLs** - Now using POST requests with session tokens
@@ -28,6 +35,8 @@ Implement critical security fixes and modernize the architecture to prepare for 
 - ♻️ Updated ConnectionDetails model with SelectedDatabase property
 - ⚡ Query execution now returns metrics (execution time, rows affected)
 - ♻️ Improved null safety with nullable reference types
+- ⚡ **Upgraded from .NET 6.0 to .NET 8.0 LTS** - Better performance, native rate limiting, latest features
+- 🔒 **Replaced System.Data.SqlClient** - Fixed high/moderate severity vulnerabilities
 
 ### Security
 - 🔒 **CRITICAL FIX: Connection strings no longer exposed in URLs**
@@ -36,6 +45,10 @@ Implement critical security fixes and modernize the architecture to prepare for 
 - 🔒 Session validation on every API request
 - 🔒 Automatic session expiration (24 hours)
 - 🔒 Password no longer saved to localStorage (only if explicitly requested)
+- 🔒 **JWT Authentication** - Cryptographically signed tokens (HMAC-SHA256)
+- 🔒 **Rate Limiting** - Protection against brute force and DDoS
+- 🔒 **CORS Policy** - Cross-origin request protection
+- 🔒 **Token expiration** - JWT tokens auto-expire (configurable)
 
 ### Technical Improvements
 - Better error handling with structured responses

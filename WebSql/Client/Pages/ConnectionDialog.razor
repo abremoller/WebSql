@@ -10,9 +10,7 @@
 					Server type:
 				</div>
 				<div class="col">
-					<HxDropdown>
-						<HxDropdownToggleButton Color="ThemeColor.Secondary">SQL Database Engine</HxDropdownToggleButton>
-					</HxDropdown>
+					<HxInputText @bind-Value="engineType" Label="" Enabled="false" />
 				</div>
 			</div>
 			<div class="row g-5">
@@ -40,7 +38,7 @@
 					Integrated Security:
 				</div>
 				<div class="col">
-					<HxInputCheckbox @bind-Value="integratedSecurity" Label="" />
+					<HxCheckbox @bind-Value="integratedSecurity" />
 				</div>
 			</div>
 			<div class="row g-5">
@@ -64,7 +62,7 @@
 					Remember Details
 				</div>
 				<div class="col">
-					<HxInputCheckbox @bind-Value="rememberDetails" Enabled="@(!integratedSecurity)" />
+					<HxCheckbox @bind-Value="rememberDetails" Enabled="@(!integratedSecurity)" />
 				</div>
 			</div>
 		</div>
@@ -81,6 +79,7 @@
 	private string password = "";
 	private string login = "";
 	private string serverName = "";
+	private string engineType = "SQL Database Engine";
 	private bool integratedSecurity = true;
 	private bool rememberDetails = true;
 	private List<string> serverDetails = new List<string>();
@@ -100,36 +99,56 @@
 
 	private async Task<bool> HandleConnectClick()
 	{
-		ConnectionService.ConnectionDetails.ServerName = serverName;
-		ConnectionService.ConnectionDetails.Login = login;
-		ConnectionService.ConnectionDetails.Password = password;
-		ConnectionService.ConnectionDetails.IntegratedSecurity = integratedSecurity;
-		
-		// First connect to get session token
-		bool connected = await ConnectionService.ConnectAsync();
-		
-		if (connected)
+		try
 		{
-			// Then get the object explorer
-			await ConnectionService.GetExplorerAsync();
+			Console.WriteLine($"[ConnectionDialog] Connect clicked for server: {serverName}");
 			
-			// Save connection details (but NOT password!)
-			if (rememberDetails && !integratedSecurity)
+			ConnectionService.ConnectionDetails.ServerName = serverName;
+			ConnectionService.ConnectionDetails.Login = login;
+			ConnectionService.ConnectionDetails.Password = password;
+			ConnectionService.ConnectionDetails.IntegratedSecurity = integratedSecurity;
+			
+			// First connect to get session token
+			Console.WriteLine("[ConnectionDialog] Calling ConnectAsync");
+			bool connected = await ConnectionService.ConnectAsync();
+			Console.WriteLine($"[ConnectionDialog] ConnectAsync returned: {connected}");
+			
+			if (connected)
 			{
-				await LocalStorage.SetItemAsync($"ServerName", serverName);
-				await LocalStorage.SetItemAsync($"Login", login);
+				// Then get the object explorer
+				Console.WriteLine("[ConnectionDialog] Calling GetExplorerAsync");
+				bool explorerLoaded = await ConnectionService.GetExplorerAsync();
+				Console.WriteLine($"[ConnectionDialog] GetExplorerAsync returned: {explorerLoaded}");
+				
+				// Save connection details (but NOT password!)
+				if (rememberDetails && !integratedSecurity)
+				{
+					await LocalStorage.SetItemAsync($"ServerName", serverName);
+					await LocalStorage.SetItemAsync($"Login", login);
+				}
+
+				Console.WriteLine("[ConnectionDialog] Hiding dialog and firing OnDialogClose");
+				await connectionDialog.HideAsync();
+
+				if (OnDialogClose != null)
+					OnDialogClose();
+
+				Console.WriteLine("[ConnectionDialog] Connection complete");
+				return true;
+			}
+			else
+			{
+				Console.WriteLine("[ConnectionDialog] Connection failed");
 			}
 
-			await connectionDialog.HideAsync();
-
-			if (OnDialogClose != null)
-				OnDialogClose();
-
-			return true;
+			// TODO: Show error message to user
+			return false;
 		}
-
-		// TODO: Show error message to user
-		return false;
+		catch (Exception ex)
+		{
+			Console.WriteLine($"[ConnectionDialog] Exception: {ex.Message}\n{ex.StackTrace}");
+			return false;
+		}
 	}
 
 	private async Task HandleHideClick()

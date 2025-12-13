@@ -10,8 +10,8 @@ namespace WebSql.Server
 		const string __GetTables = "select * from INFORMATION_SCHEMA.COLUMNS";
 		const string __MasterDBName = "master";
 
-		private List<string> _databases;
-		private string _connectionString;
+		private List<string> _databases = new();
+		private string _connectionString = string.Empty;
 
 		private async Task PopulateDatabasesAsync()
 		{

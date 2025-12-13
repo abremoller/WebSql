@@ -21,13 +21,15 @@ WebSql is designed to be a powerful, browser-based SQL client that can be hosted
 - **Frontend:** Blazor WebAssembly (C#)
 - **Backend:** ASP.NET Core Web API
 - **UI Framework:** Havit Blazor Components
-- **Database:** SQL Server (PostgreSQL, MySQL, SQLite planned)
-- **Target Platform:** .NET 6.0
+- **Database:** SQL Server with Microsoft.Data.SqlClient
+- **Target Platform:** .NET 8.0 LTS
+- **Authentication:** JWT (JSON Web Tokens)
+- **Security:** Rate limiting, CORS policies
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- .NET 6.0 SDK or later
+- .NET 8.0 SDK or later
 - SQL Server (for database connections)
 - Visual Studio 2022 or VS Code with C# extension
 
@@ -100,7 +102,8 @@ This is currently a personal project, but contributions are welcome! Please:
 
 ## 📝 Project Status
 
-- **Current Version:** 0.2.0-alpha (unreleased)
+- **Current Version:** 0.3.0-alpha (unreleased)
+- **Framework:** .NET 8.0 LTS
 - **Status:** Active Development
 - **Branch:** MVP
 - **Last Updated:** December 13, 2025
