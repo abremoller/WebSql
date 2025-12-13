@@ -47,6 +47,20 @@
 								</HxDropdownButtonGroup>
 								<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="() => RunQuery()"/>
 								<HxDropdownButtonGroup>
+									<HxDropdownToggleButton Color="ThemeColor.Info" Icon="BootstrapIcon.ArrowRepeat">Transaction</HxDropdownToggleButton>
+									<HxDropdownMenu>
+										<HxDropdownItem OnClick="() => ExecuteTransactionCommand(TransactionCommands.Begin)">
+											<HxIcon Icon="BootstrapIcon.PlayCircle" CssClass="me-2" />BEGIN TRANSACTION
+										</HxDropdownItem>
+										<HxDropdownItem OnClick="() => ExecuteTransactionCommand(TransactionCommands.Commit)">
+											<HxIcon Icon="BootstrapIcon.CheckCircle" CssClass="me-2" />COMMIT
+										</HxDropdownItem>
+										<HxDropdownItem OnClick="() => ExecuteTransactionCommand(TransactionCommands.Rollback)">
+											<HxIcon Icon="BootstrapIcon.XCircle" CssClass="me-2" />ROLLBACK
+										</HxDropdownItem>
+									</HxDropdownMenu>
+								</HxDropdownButtonGroup>
+								<HxDropdownButtonGroup>
 									<HxDropdownToggleButton Color="ThemeColor.Light" Icon="BootstrapIcon.FileEarmarkCode">Templates</HxDropdownToggleButton>
 									<HxDropdownMenu>
 										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.SelectTop100)">SELECT TOP 100</HxDropdownItem>
@@ -261,6 +275,51 @@
 	private async Task InsertTemplate(string template)
 	{
 		await codeEditor.SetValue(template);
+	}
+
+	private async Task ExecuteTransactionCommand(string command)
+	{
+		try
+		{
+			messagesPanel?.AddMessage($"Executing: {command}", MessagesPanel.MessageType.Info);
+			
+			var (rowCount, errorMessage, requiresConfirmation) = await ConnectionService.RunQuery(command, false);
+			
+			if (string.IsNullOrEmpty(errorMessage))
+			{
+				messagesPanel?.AddMessage($"{command} executed successfully.", MessagesPanel.MessageType.Success);
+				
+				if (command == TransactionCommands.Begin)
+				{
+					Messenger.AddInformation("Transaction started", "You can now execute queries within the transaction. Use COMMIT to save changes or ROLLBACK to undo.");
+				}
+				else if (command == TransactionCommands.Commit)
+				{
+					Messenger.AddInformation("Transaction committed - All changes have been saved.");
+				}
+				else if (command == TransactionCommands.Rollback)
+				{
+					Messenger.AddWarning("Transaction rolled back", "All changes have been discarded.");
+				}
+			}
+			else
+			{
+				messagesPanel?.AddErrorMessage(errorMessage);
+				Messenger.AddError("Transaction Error", errorMessage);
+			}
+		}
+		catch (Exception ex)
+		{
+			messagesPanel?.AddErrorMessage(ex.Message);
+			Messenger.AddError("Error", $"Failed to execute transaction command: {ex.Message}");
+		}
+	}
+
+	public static class TransactionCommands
+	{
+		public const string Begin = "BEGIN TRANSACTION";
+		public const string Commit = "COMMIT";
+		public const string Rollback = "ROLLBACK";
 	}
 
 	public static class QueryTemplates
