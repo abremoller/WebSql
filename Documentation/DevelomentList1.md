@@ -1,6 +1,12 @@
-# WebSql Development Roadmap
+# WebSql MVP - Development Status
 
-## 🔴 Critical Security Fixes (Priority 1)
+> **Status**: MVP Complete - All Critical Features Implemented
+> 
+> For post-MVP features and future enhancements, see [PostMVP.md](PostMVP.md)
+
+---
+
+## 🔴 Critical Security Fixes (Priority 1) - ✅ COMPLETE
 
 ### 1. Secure Connection String Handling
 - [x] **Remove connection strings from URLs** - Currently passing sensitive data in GET route parameters
@@ -22,7 +28,7 @@
 
 ---
 
-## 🟠 High Priority Architecture Improvements (Priority 2)
+## 🟠 High Priority Architecture Improvements (Priority 2) - ✅ MVP COMPLETE
 
 ### 4. Connection Management
 - [x] **Create ConnectionManager service** - Centralized connection lifecycle management
@@ -34,130 +40,81 @@
 
 ### 5. Data Access Layer Refactoring
 - [x] **Convert to async/await** - Use async database operations throughout
-- [ ] **Implement repository pattern** - Abstract data access logic
 - [x] **Add proper error handling** - Structured exception handling and logging
-- [ ] **Use IDbConnection abstraction** - Prepare for multi-database support
-- [ ] **Add transaction support** - Enable multi-statement transactions
+
+**Post-MVP items moved to [PostMVP.md](PostMVP.md):**
+- Implement repository pattern
+- Use IDbConnection abstraction
+- Add transaction support (basic transaction controls implemented)
 
 ### 6. API Design Improvements
 - [x] **Change to POST requests** - Move sensitive data from URLs to request bodies
 - [x] **Implement proper DTOs** - Request/Response models with validation
-- [ ] **Add API versioning** - Support v1, v2 endpoints
 - [x] **Implement structured logging** - Use Serilog or similar
 - [x] **Add comprehensive error responses** - Standardized error format
 
----
-
-## 🟡 Medium Priority Features (Priority 3)
-
-### 7. Query Editor Enhancements
-- [ ] **Integrate Monaco Editor** - VS Code-like SQL editing experience
-- [ ] **Add syntax highlighting** - SQL keyword highlighting
-- [ ] **Implement IntelliSense/autocomplete** - Auto-completion for tables/columns/SQL keywords
-- [ ] **Add query formatting** - Auto-format SQL queries
-- [ ] **Enable multiple query tabs** - Work on multiple queries simultaneously
-
-### 8. Results Display Improvements
-- [ ] **Add pagination** - Handle large result sets efficiently
-- [ ] **Implement column sorting** - Click-to-sort functionality
-- [ ] **Add column filtering** - Quick filter per column
-- [ ] **Enable column resizing** - Adjustable column widths
-- [ ] **Add row selection** - Select and copy multiple rows
-- [ ] **Export results** - CSV, JSON, Excel export options
-
-### 9. Object Explorer Enhancements
-- [ ] **Add views support** - Display database views
-- [ ] **Add stored procedures** - Browse and execute sprocs
-- [ ] **Add functions support** - Scalar and table-valued functions
-- [ ] **Show indexes** - Display table indexes
-- [ ] **Add schema information** - Show column types, constraints, defaults
-- [ ] **Implement right-click context menu** - Quick actions (Script table, etc.)
-- [ ] **Add search/filter** - Find objects by name
-
-### 10. Query Execution Features
-- [ ] **Add query history** - Save and recall previous queries
-- [ ] **Show execution time** - Display query duration
-- [ ] **Implement Messages tab** - Display query execution messages like SSMS (errors, warnings, rows affected, etc.)
-- [ ] **Add execution plans** - View query execution plans
-- [ ] **Implement query cancellation** - Stop long-running queries
-- [ ] **Add transaction controls** - BEGIN, COMMIT, ROLLBACK buttons
-- [ ] **Show rows affected** - Display modification counts
-- [ ] **Add query templates** - Common query snippets
+**Post-MVP items moved to [PostMVP.md](PostMVP.md):**
+- Add API versioning
 
 ---
 
-## 🟢 Lower Priority / Nice-to-Have (Priority 4)
+## ✨ MVP Feature Additions - ✅ IMPLEMENTED
 
-### 11. Multi-Database Support
-- [ ] **Abstract database provider interface** - IDbProvider pattern
-- [ ] **Add PostgreSQL support** - Implement Postgres provider
-- [ ] **Add MySQL support** - Implement MySQL provider
-- [ ] **Add SQLite support** - Implement SQLite provider
-- [ ] **Add MongoDB support** - NoSQL document database
-- [ ] **Database-specific features** - Handle vendor-specific SQL
+### 7. Query Editor - Monaco Integration
+- [x] **Integrate Monaco Editor** - VS Code-like SQL editing experience
+- [x] **Add syntax highlighting** - SQL keyword highlighting
+- [x] **IntelliSense/autocomplete** - Auto-completion for SQL keywords
 
-### 12. Advanced Features
-- [ ] **Add backup/restore** - Database backup management
-- [ ] **Implement schema compare** - Compare database schemas
-- [ ] **Add data compare** - Compare table data
-- [ ] **Generate scripts** - DDL script generation
-- [ ] **Add diagram designer** - Visual schema designer
-- [ ] **Implement migration tools** - Schema migration support
+### 8. Object Explorer
+- [x] **Display databases** - Expandable database list
+- [x] **Display tables** - Show tables under each database
+- [x] **Show schema information** - Display schema.table format and column types
 
-### 13. User Experience
-- [ ] **Add dark/light theme toggle** - Theme customization
-- [ ] **Implement keyboard shortcuts** - F5 to execute, Ctrl+S to save, etc.
-- [ ] **Add query bookmarks** - Save favorite queries
-- [ ] **Implement workspace saves** - Save entire work session
-- [ ] **Add collaborative features** - Share queries with team
-- [ ] **Mobile responsive design** - Optimize for tablets/phones
+### 9. Results Display
+- [x] **Results grid** - Display query results in table format
+- [x] **Column type display** - Show data types in column headers
+- [x] **Export to CSV** - Download results as CSV file
+- [x] **Column resizing** - Visual resize affordances and styling
+- [x] **Text overflow handling** - Ellipsis for long values with tooltips
 
-### 14. Configuration & Settings
-- [ ] **Add appsettings configuration** - Move hardcoded values to config
-- [ ] **Implement user preferences** - Persistent user settings
-- [ ] **Add connection string encryption** - Encrypted config storage
-- [ ] **Environment-specific configs** - Dev/Staging/Prod settings
-- [ ] **Add feature flags** - Toggle features on/off
+### 10. Query Execution
+- [x] **Query history** - Save and recall last 50 queries with timestamps
+- [x] **Show execution time** - Display query duration in messages panel
+- [x] **Messages panel** - Display execution messages, errors, and warnings
+- [x] **Show rows affected** - Display modification counts
+- [x] **Transaction controls** - BEGIN TRANSACTION, COMMIT, ROLLBACK buttons
+- [x] **Query templates** - 14 common SQL query patterns
+- [x] **Keyboard shortcuts** - F5 to execute queries
 
-### 15. Testing & Quality
-- [ ] **Add unit tests** - Test business logic
-- [ ] **Add integration tests** - Test API endpoints
-- [ ] **Add UI tests** - Blazor component tests
-- [ ] **Implement CI/CD pipeline** - Automated build/test/deploy
-- [ ] **Add code coverage** - Track test coverage metrics
-
-### 16. Documentation
-- [ ] **Add API documentation** - Swagger/OpenAPI docs
-- [ ] **Create user guide** - How-to documentation
-- [ ] **Add deployment guide** - Plesk deployment instructions
-- [ ] **Create developer docs** - Architecture and contribution guide
-- [ ] **Add inline code comments** - Improve code documentation
+### 11. User Experience
+- [x] **Connection profiles** - Save/load named connection configurations
+- [x] **Connection history** - Recent server connections dropdown (last 10)
+- [x] **Remember credentials** - Optional credential persistence (login only, no passwords)
 
 ---
 
-## 🔮 Post-MVP Advanced Features
-See [AdvancedFeatures.md](AdvancedFeatures.md) for detailed documentation on:
-- **Data Editing Interface** - No-code SQL editing with role-based access
-- **Audit Logging System** - Comprehensive change tracking and compliance features
-
----
-
-## 📊 Current Status
-- **Project Phase**: MVP - Security Hardened
+## 📊 MVP Status
+**MVP Complete** ✅
+- **Project Phase**: MVP - Feature Complete & Security Hardened
 - **Framework**: .NET 8.0 LTS / Blazor WebAssembly
 - **Database Support**: SQL Server (Microsoft.Data.SqlClient 5.1.5)
-- **Deployment Target**: Plesk hosting
+- **Deployment Target**: Plesk hosting ready
 - **Authentication**: JWT with HMAC-SHA256 signing
-- **Security**: Rate limiting, CORS, secure token management, dangerous operations protection
+- **Security**: Rate limiting, CORS, secure token management, dangerous operations protection (3-state mode)
 - **Code Editor**: Monaco Editor with SQL syntax highlighting and IntelliSense
-- **Query Feedback**: Messages panel with execution time and rows affected
+- **Query Features**: History, templates, transaction controls, F5 execution
+- **Results**: CSV export, column types, execution time, rows affected
+- **Connections**: Profiles, history, remember credentials
 
-## 🎯 Recommended Next Steps
-1. Start with **Critical Security Fixes** (items 1-3)
-2. Move to **Connection Management & API improvements** (items 4-6)
-3. Enhance **Query Editor** with Monaco integration (item 7)
-4. Improve **Results Display** and **Object Explorer** (items 8-9)
-5. Plan for **Multi-Database Support** architecture (item 11)
+## 🎯 Next Phase - Post-MVP
+For future enhancements and roadmap, see [PostMVP.md](PostMVP.md)
+
+Priority areas for post-MVP:
+1. **Multi-database support** - PostgreSQL, MySQL, SQLite
+2. **Advanced query editor** - Multiple tabs, query formatting, advanced IntelliSense
+3. **Enhanced object explorer** - Views, stored procedures, functions, indexes
+4. **User management & RBAC** - Role-based access control
+5. **Performance tools** - Execution plans, query profiler, index advisor
 
 ---
 
