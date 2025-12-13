@@ -46,6 +46,28 @@
 									</HxDropdownMenu>
 								</HxDropdownButtonGroup>
 								<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="() => RunQuery()"/>
+								<HxDropdownButtonGroup>
+									<HxDropdownToggleButton Color="ThemeColor.Light" Icon="BootstrapIcon.FileEarmarkCode">Templates</HxDropdownToggleButton>
+									<HxDropdownMenu>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.SelectTop100)">SELECT TOP 100</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.SelectAll)">SELECT * FROM</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.SelectWhere)">SELECT WHERE</HxDropdownItem>
+										<HxDropdownDivider />
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.Insert)">INSERT INTO</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.Update)">UPDATE SET</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.Delete)">DELETE FROM</HxDropdownItem>
+										<HxDropdownDivider />
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.CreateTable)">CREATE TABLE</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.AlterTable)">ALTER TABLE</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.CreateIndex)">CREATE INDEX</HxDropdownItem>
+										<HxDropdownDivider />
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.Join)">INNER JOIN</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.LeftJoin)">LEFT JOIN</HxDropdownItem>
+										<HxDropdownDivider />
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.StoredProc)">CREATE PROCEDURE</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.Function)">CREATE FUNCTION</HxDropdownItem>
+									</HxDropdownMenu>
+								</HxDropdownButtonGroup>
 							</HxButtonGroup>
 						}
 					<CodeEditor @ref="codeEditor" />
@@ -234,5 +256,88 @@
 	{
 		Console.WriteLine("[Index] OnObjectExplorerDataLoaded - triggering StateHasChanged");
 		StateHasChanged();
+	}
+
+	private async Task InsertTemplate(string template)
+	{
+		await codeEditor.SetValue(template);
+	}
+
+	public static class QueryTemplates
+	{
+		public const string SelectTop100 = @"SELECT TOP 100 *
+FROM [SchemaName].[TableName]
+ORDER BY [ColumnName] DESC";
+
+		public const string SelectAll = @"SELECT *
+FROM [SchemaName].[TableName]";
+
+		public const string SelectWhere = @"SELECT [Column1], [Column2], [Column3]
+FROM [SchemaName].[TableName]
+WHERE [ColumnName] = 'value'";
+
+		public const string Insert = @"INSERT INTO [SchemaName].[TableName] ([Column1], [Column2], [Column3])
+VALUES ('value1', 'value2', 'value3')";
+
+		public const string Update = @"UPDATE [SchemaName].[TableName]
+SET [Column1] = 'value1',
+    [Column2] = 'value2'
+WHERE [ColumnName] = 'value'";
+
+		public const string Delete = @"DELETE FROM [SchemaName].[TableName]
+WHERE [ColumnName] = 'value'";
+
+		public const string CreateTable = @"CREATE TABLE [SchemaName].[TableName]
+(
+    [Id] INT IDENTITY(1,1) PRIMARY KEY,
+    [Name] NVARCHAR(255) NOT NULL,
+    [Description] NVARCHAR(MAX),
+    [CreatedDate] DATETIME2 DEFAULT GETDATE()
+)";
+
+		public const string AlterTable = @"ALTER TABLE [SchemaName].[TableName]
+ADD [NewColumn] NVARCHAR(100) NULL";
+
+		public const string CreateIndex = @"CREATE NONCLUSTERED INDEX [IX_TableName_ColumnName]
+ON [SchemaName].[TableName] ([ColumnName])";
+
+		public const string Join = @"SELECT a.[Column1], b.[Column2]
+FROM [SchemaName].[TableA] a
+INNER JOIN [SchemaName].[TableB] b
+    ON a.[Id] = b.[ForeignKeyId]";
+
+		public const string LeftJoin = @"SELECT a.[Column1], b.[Column2]
+FROM [SchemaName].[TableA] a
+LEFT JOIN [SchemaName].[TableB] b
+    ON a.[Id] = b.[ForeignKeyId]";
+
+		public const string StoredProc = @"CREATE PROCEDURE [SchemaName].[ProcedureName]
+    @Parameter1 INT,
+    @Parameter2 NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT *
+    FROM [SchemaName].[TableName]
+    WHERE [Column1] = @Parameter1
+        AND [Column2] = @Parameter2
+END";
+
+		public const string Function = @"CREATE FUNCTION [SchemaName].[FunctionName]
+(
+    @Parameter1 INT
+)
+RETURNS NVARCHAR(255)
+AS
+BEGIN
+    DECLARE @Result NVARCHAR(255)
+    
+    SELECT @Result = [ColumnName]
+    FROM [SchemaName].[TableName]
+    WHERE [Id] = @Parameter1
+    
+    RETURN @Result
+END";
 	}
 }
