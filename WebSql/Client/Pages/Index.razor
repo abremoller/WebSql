@@ -47,6 +47,34 @@
 								</HxDropdownButtonGroup>
 								<HxButton Text="Run" Color="ThemeColor.Primary" Icon="BootstrapIcon.CaretRight" OnClick="() => RunQuery()"/>
 								<HxDropdownButtonGroup>
+									<HxDropdownToggleButton Color="ThemeColor.Warning" Icon="BootstrapIcon.ClockHistory">History</HxDropdownToggleButton>
+									<HxDropdownMenu>
+										@if (queryHistory.Count == 0)
+										{
+											<HxDropdownItem Enabled="false">No query history</HxDropdownItem>
+										}
+										else
+										{
+											@foreach (var (query, timestamp) in queryHistory.Take(10))
+											{
+												<HxDropdownItem OnClick="() => LoadQueryFromHistory(query)">
+													<div style="max-width: 400px;">
+														<div style="font-size: 0.75em; color: #6c757d;">@timestamp.ToString("HH:mm:ss")</div>
+														<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@query</div>
+													</div>
+												</HxDropdownItem>
+											}
+											@if (queryHistory.Count > 0)
+											{
+												<HxDropdownDivider />
+												<HxDropdownItem OnClick="ClearHistory">
+													<HxIcon Icon="BootstrapIcon.Trash" CssClass="me-2" />Clear History
+												</HxDropdownItem>
+											}
+										}
+									</HxDropdownMenu>
+								</HxDropdownButtonGroup>
+								<HxDropdownButtonGroup>
 									<HxDropdownToggleButton Color="ThemeColor.Info" Icon="BootstrapIcon.ArrowRepeat">Transaction</HxDropdownToggleButton>
 									<HxDropdownMenu>
 										<HxDropdownItem OnClick="() => ExecuteTransactionCommand(TransactionCommands.Begin)">
@@ -133,6 +161,7 @@
 	ResultsGrid ResultsGrid;
 	MessagesPanel messagesPanel;
 	private bool connected;
+	private List<(string Query, DateTime Timestamp)> queryHistory = new();
 
 	protected override async Task OnAfterRenderAsync(bool firstRender)
 	{
@@ -211,6 +240,21 @@
 			messagesPanel?.Clear();
 			
 			var queryText = await codeEditor.GetValue();
+			
+			// Add to history (only if not already the most recent)
+			if (!string.IsNullOrWhiteSpace(queryText))
+			{
+				if (queryHistory.Count == 0 || queryHistory[0].Query != queryText)
+				{
+					queryHistory.Insert(0, (queryText, DateTime.Now));
+					// Keep only last 50 queries
+					if (queryHistory.Count > 50)
+					{
+						queryHistory.RemoveAt(queryHistory.Count - 1);
+					}
+				}
+			}
+			
 			messagesPanel?.AddMessage($"Executing query...", MessagesPanel.MessageType.Info);
 			
 			var (rowCount, errorMessage, requiresConfirmation) = await ConnectionService.RunQuery(queryText, confirmedDangerous);
@@ -269,6 +313,17 @@
 	private void OnObjectExplorerDataLoaded()
 	{
 		Console.WriteLine("[Index] OnObjectExplorerDataLoaded - triggering StateHasChanged");
+		StateHasChanged();
+	}
+
+	private async Task LoadQueryFromHistory(string query)
+	{
+		await codeEditor.SetValue(query);
+	}
+
+	private void ClearHistory()
+	{
+		queryHistory.Clear();
 		StateHasChanged();
 	}
 
