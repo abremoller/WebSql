@@ -1,12 +1,22 @@
 using Microsoft.AspNetCore.ResponseCompression;
+using WebSql.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
 builder.Services.AddHttpClient();
+
+// Register custom services
+builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
+
+// Add logging
+builder.Services.AddLogging(config =>
+{
+    config.AddConsole();
+    config.AddDebug();
+});
 
 var app = builder.Build();
 

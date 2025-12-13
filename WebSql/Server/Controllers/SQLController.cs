@@ -11,11 +11,11 @@ namespace WebSql.Server.Controllers
     {
         [HttpGet]
         [Route("SQL/GetServerExplorer/{connectionString}")]
-        public IActionResult GetServerExplorer(string connectionString)
+        public async Task<IActionResult> GetServerExplorer(string connectionString)
         {
             try
             {
-                var objectExplorer = ServerLogic.GetObjectExplorer(connectionString);
+                var objectExplorer = await ServerLogic.GetObjectExplorerAsync(connectionString);
                 return Ok(objectExplorer);
             }
             catch (Exception ex)
@@ -26,11 +26,11 @@ namespace WebSql.Server.Controllers
 
         [HttpGet]
         [Route("SQL/RunQuery/{connectionString}&{query}")]
-        public IActionResult RunQuery(string connectionString, string query)
+        public async Task<IActionResult> RunQuery(string connectionString, string query)
         {
             try
             {
-                var tableResults = ServerLogic.RunQuery(connectionString, query);
+                var tableResults = await ServerLogic.RunQueryAsync(connectionString, query);
                 return Ok(tableResults);
             }
             catch (Exception ex)

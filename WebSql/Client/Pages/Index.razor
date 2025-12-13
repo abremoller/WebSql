@@ -95,12 +95,14 @@
 
 	protected override void OnAfterRender(bool firstRender)
 	{
-		connectionStringDialog.OnDialogClose += ConnectionDialogClosed;
-		connectionStringDialog.Show();
+		if (firstRender)
+		{
+			connectionStringDialog.OnDialogClose += ConnectionDialogClosed;
+			connectionStringDialog.Show();
+		}
 
 		codeEditorAccordion.ExpandAsync();
 	}
-
 
 	public void ConnectionDialogClosed()
 	{
@@ -110,13 +112,21 @@
 
 	public async void RunQuery()
 	{
-		int rowsReturned = await ConnectionService.RunQuery(codeEditor.Text);
-		if (rowsReturned > 0)
-			ResultsGrid.DisplayResults();
+		var (rowCount, errorMessage) = await ConnectionService.RunQuery(codeEditor.Text);
+		if (string.IsNullOrEmpty(errorMessage))
+		{
+			if (rowCount > 0)
+				ResultsGrid.DisplayResults();
+		}
+		else
+		{
+			// TODO: Display error message to user
+			Console.WriteLine($"Query error: {errorMessage}");
+		}
 	}
 
-	private void ChangeSelectedDatabase(string selectedItem)
+	private async void ChangeSelectedDatabase(string selectedItem)
 	{
-		ConnectionService.SelectedDatabase = selectedItem;
+		await ConnectionService.ChangeDatabaseAsync(selectedItem);
 	}
 }

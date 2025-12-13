@@ -104,16 +104,32 @@
 		ConnectionService.ConnectionDetails.Login = login;
 		ConnectionService.ConnectionDetails.Password = password;
 		ConnectionService.ConnectionDetails.IntegratedSecurity = integratedSecurity;
-		bool connected = await ConnectionService.GetExplorerAsync();
+		
+		// First connect to get session token
+		bool connected = await ConnectionService.ConnectAsync();
+		
+		if (connected)
+		{
+			// Then get the object explorer
+			await ConnectionService.GetExplorerAsync();
+			
+			// Save connection details (but NOT password!)
+			if (rememberDetails && !integratedSecurity)
+			{
+				await LocalStorage.SetItemAsync($"ServerName", serverName);
+				await LocalStorage.SetItemAsync($"Login", login);
+			}
 
-		LocalStorage.SetItemAsync($"ServerName={serverName}", ConnectionService);
+			await connectionDialog.HideAsync();
 
-		await connectionDialog.HideAsync();
+			if (OnDialogClose != null)
+				OnDialogClose();
 
-		if (OnDialogClose != null)
-			OnDialogClose();
+			return true;
+		}
 
-		return true;
+		// TODO: Show error message to user
+		return false;
 	}
 
 	private async Task HandleHideClick()
