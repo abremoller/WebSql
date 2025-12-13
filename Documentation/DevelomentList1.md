@@ -28,6 +28,7 @@
 - [x] **Create ConnectionManager service** - Centralized connection lifecycle management
 - [ ] **Implement connection pooling** - Reuse database connections efficiently
 - [ ] **Add connection profiles** - Save/load named connection configurations
+- [ ] **Add server connection history** - Dropdown with last 10 successful server connections cached in browser
 - [x] **Support connection timeouts** - Configurable timeout settings
 - [x] **Add connection health checks** - Verify connections before use
 
@@ -52,7 +53,7 @@
 ### 7. Query Editor Enhancements
 - [ ] **Integrate Monaco Editor** - VS Code-like SQL editing experience
 - [ ] **Add syntax highlighting** - SQL keyword highlighting
-- [ ] **Implement IntelliSense** - Auto-completion for tables/columns
+- [ ] **Implement IntelliSense/autocomplete** - Auto-completion for tables/columns/SQL keywords
 - [ ] **Add query formatting** - Auto-format SQL queries
 - [ ] **Enable multiple query tabs** - Work on multiple queries simultaneously
 
@@ -76,6 +77,7 @@
 ### 10. Query Execution Features
 - [ ] **Add query history** - Save and recall previous queries
 - [ ] **Show execution time** - Display query duration
+- [ ] **Implement Messages tab** - Display query execution messages like SSMS (errors, warnings, rows affected, etc.)
 - [ ] **Add execution plans** - View query execution plans
 - [ ] **Implement query cancellation** - Stop long-running queries
 - [ ] **Add transaction controls** - BEGIN, COMMIT, ROLLBACK buttons
@@ -130,6 +132,13 @@
 - [ ] **Add deployment guide** - Plesk deployment instructions
 - [ ] **Create developer docs** - Architecture and contribution guide
 - [ ] **Add inline code comments** - Improve code documentation
+
+---
+
+## 🔮 Post-MVP Advanced Features
+See [AdvancedFeatures.md](AdvancedFeatures.md) for detailed documentation on:
+- **Data Editing Interface** - No-code SQL editing with role-based access
+- **Audit Logging System** - Comprehensive change tracking and compliance features
 
 ---
 
