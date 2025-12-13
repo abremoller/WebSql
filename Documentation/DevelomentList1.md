@@ -6,18 +6,18 @@
 - [x] **Remove connection strings from URLs** - Currently passing sensitive data in GET route parameters
 - [x] **Implement server-side connection management** - Store connections with session/token IDs
 - [x] **Add JWT authentication** - Secure API endpoints with bearer tokens
-- [ ] **Encrypt stored credentials** - Use Data Protection API for any persisted credentials
+- [x] **Encrypt stored credentials** - Credentials not persisted; handled via JWT tokens and server-side connection management
 - [x] **Add CORS policies** - Restrict API access to authorized origins only
 
 ### 2. SQL Injection Prevention
-- [ ] **Implement parameterized queries** - Replace string concatenation with SqlParameter
+- [N/A] **Implement parameterized queries** - Not applicable: This is a SQL query tool where users write raw SQL (like SSMS). Query validation provides appropriate protection.
 - [x] **Add query validation** - Sanitize and validate all user input
 - [x] **Implement query allow/deny lists** - Restrict dangerous SQL commands with 3-state mode (Disabled/Prompt/Enabled)
 
 ### 3. API Security
 - [x] **Add authentication middleware** - Protect all API endpoints
 - [x] **Implement rate limiting** - Prevent API abuse
-- [ ] **Add authorization policies** - Role-based access control
+- [DEFERRED] **Add authorization policies** - Role-based access control (Post-MVP: requires user management system)
 - [x] **Secure error handling** - Don't expose stack traces/connection details to client
 
 ---
@@ -26,9 +26,9 @@
 
 ### 4. Connection Management
 - [x] **Create ConnectionManager service** - Centralized connection lifecycle management
-- [ ] **Implement connection pooling** - Reuse database connections efficiently
-- [ ] **Add connection profiles** - Save/load named connection configurations
-- [ ] **Add server connection history** - Dropdown with last 10 successful server connections cached in browser
+- [DEFERRED] **Implement connection pooling** - SQL Server handles pooling automatically; additional pooling would add complexity without benefit
+- [x] **Add connection profiles** - Save/load named connection configurations  
+- [x] **Add server connection history** - Dropdown with last 10 successful server connections cached in browser
 - [x] **Support connection timeouts** - Configurable timeout settings
 - [x] **Add connection health checks** - Verify connections before use
 
