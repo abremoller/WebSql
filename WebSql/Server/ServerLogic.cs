@@ -105,9 +105,10 @@ namespace WebSql.Server
 				foreach (DataRow dr in columnDs)
 				{
 					var columnName = dr["COLUMN_NAME"]?.ToString();
+					var dataType = dr["DATA_TYPE"]?.ToString();
 					if (!string.IsNullOrEmpty(columnName))
 					{
-						columns.Add(new Column() { Name = columnName });
+						columns.Add(new Column() { Name = columnName, Type = dataType ?? "unknown" });
 					}
 				}
 			}

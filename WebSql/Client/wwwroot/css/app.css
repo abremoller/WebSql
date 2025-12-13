@@ -62,3 +62,35 @@ a, .btn-link {
     .blazor-error-boundary::after {
         content: "An error has occurred."
     }
+
+/* Results Grid Enhancements */
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    user-select: none;
+}
+
+.table td {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* Column resizing handle */
+.table th::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+}
+
+.table th:hover::after {
+    background: rgba(0, 0, 0, 0.1);
+}

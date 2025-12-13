@@ -8,27 +8,34 @@
 	<div class="mb-2">
 		<HxButton Text="Export to CSV" Icon="BootstrapIcon.Download" Color="ThemeColor.Secondary" Size="ButtonSize.Small" OnClick="ExportToCsv" />
 	</div>
-	<table class="table table-bordered">
-		<thead>
-			<tr>
-				@foreach (var col in ConnectionService.Table.Columns)
-				{
-					<th>@col.Name</th>
-				}
-			</tr>
-		</thead>
-		<tbody>
-			@foreach (var row in ConnectionService.Table.Rows)
-			{
+	<div style="overflow-x: auto;">
+		<table class="table table-bordered table-hover" style="table-layout: auto; white-space: nowrap;">
+			<thead>
 				<tr>
-					@foreach (var col in row)
+					@foreach (var col in ConnectionService.Table.Columns)
 					{
-						<td>@col</td>
+						<th style="resize: horizontal; overflow: auto; min-width: 100px; max-width: 500px; position: relative;">
+							<div style="display: flex; align-items: center; justify-content: space-between;">
+								<span>@col.Name</span>
+								<span style="color: #6c757d; font-size: 0.8em; font-weight: normal; margin-left: 8px;">@col.Type</span>
+							</div>
+						</th>
 					}
 				</tr>
-			}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				@foreach (var row in ConnectionService.Table.Rows)
+				{
+					<tr>
+						@foreach (var col in row)
+						{
+							<td style="max-width: 500px; overflow: hidden; text-overflow: ellipsis;" title="@col">@col</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 }
 
 @*<HxGrid TItem="CultureInfo" DataProvider="GetGridData" PageSize="10">
