@@ -1,22 +1,66 @@
-﻿<div class="col-lg-auto">
-    <HxInputTextArea @bind-Value="model.Text" style="height: 400px"  />
-</div>
+﻿@using BlazorMonaco
+@using BlazorMonaco.Editor
 
+<div style="width: 100%; height: 600px; border: 1px solid #dee2e6; border-radius: 0.25rem;">
+    <StandaloneCodeEditor @ref="editor" 
+                          Id="sql-editor"
+                          ConstructionOptions="EditorConstructionOptions"
+                          OnDidInit="OnEditorInit"
+                          CssClass="h-100 w-100" />
+</div>
 
 @code
 {
+    private StandaloneCodeEditor? editor;
+    private string editorText = "";
+
     public string Text
     {
-        get => model.Text;
-        set => model.Text = value;
+        get => editorText;
+        set => editorText = value;
     }
 
-    private Model model = new Model();
-
-    public class Model
+    private StandaloneEditorConstructionOptions EditorConstructionOptions(StandaloneCodeEditor editor)
     {
-        [System.ComponentModel.DataAnnotations.Required]
-        [System.ComponentModel.DataAnnotations.MaxLength(4000)]
-        public string Text { get; set; }
+        return new StandaloneEditorConstructionOptions
+        {
+            Language = "sql",
+            Theme = "vs",
+            AutomaticLayout = true,
+            Value = editorText,
+            FontSize = 14,
+            Minimap = new EditorMinimapOptions { Enabled = false },
+            ScrollBeyondLastLine = false,
+            LineNumbers = "on",
+            RenderWhitespace = "selection",
+            TabSize = 4,
+            WordWrap = "on"
+        };
+    }
+
+    private async Task OnEditorInit()
+    {
+        if (editor != null)
+        {
+            await editor.SetValue(editorText);
+        }
+    }
+
+    public async Task<string> GetValue()
+    {
+        if (editor != null)
+        {
+            editorText = await editor.GetValue();
+        }
+        return editorText;
+    }
+
+    public async Task SetValue(string value)
+    {
+        editorText = value;
+        if (editor != null)
+        {
+            await editor.SetValue(value);
+        }
     }
 }

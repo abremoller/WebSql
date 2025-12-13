@@ -135,7 +135,8 @@
 	{
 		try
 		{
-			var (rowCount, errorMessage) = await ConnectionService.RunQuery(codeEditor.Text);
+			var queryText = await codeEditor.GetValue();
+			var (rowCount, errorMessage) = await ConnectionService.RunQuery(queryText);
 			if (string.IsNullOrEmpty(errorMessage))
 			{
 				if (rowCount > 0)
