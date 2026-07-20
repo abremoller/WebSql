@@ -4,7 +4,7 @@ A modern, web-based database management tool built with Blazor WebAssembly and A
 
 ## 🎯 Project Vision
 
-WebSql is designed to be a powerful, browser-based SQL client that can be hosted on any web server (like Plesk), giving you secure access to your databases from anywhere. Think of it as a self-hosted alternative to database management tools, accessible through your browser.
+WebSql is designed to be a powerful, browser-based SQL client that can be self-hosted on any web server, giving you secure access to your databases from anywhere. Think of it as a self-hosted alternative to database management tools, accessible through your browser.
 
 ## ✨ Current Features (MVP)
 
@@ -119,7 +119,7 @@ This project was created as a practical learning exercise in:
 
 ## 📄 License
 
-[Add your license here]
+[MIT](LICENSE)
 
 ## 🙏 Acknowledgments
 
