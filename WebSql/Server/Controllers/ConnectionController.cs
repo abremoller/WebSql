@@ -5,6 +5,7 @@ using WebSql.Shared.DTOs;
 
 namespace WebSql.Server.Controllers
 {
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("fixed")]
     [ApiController]
     [Route("api/[controller]")]
     public class ConnectionController : ControllerBase
@@ -19,6 +20,7 @@ namespace WebSql.Server.Controllers
         }
 
         [HttpPost("connect")]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("connect")]
         public async Task<ActionResult<ConnectResponse>> Connect([FromBody] ConnectRequest request)
         {
             try

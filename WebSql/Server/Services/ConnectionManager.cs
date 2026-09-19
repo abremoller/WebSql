@@ -1,45 +1,43 @@
 using System.Collections.Concurrent;
+using Microsoft.Data.SqlClient;
+using WebSql.Server.Security;
 using WebSql.Shared;
 
 namespace WebSql.Server.Services
 {
     /// <summary>
-    /// Manages database connections securely with JWT-based tokens
+    /// Holds database sessions server-side (connection strings never go to the browser) and hands the
+    /// browser a signed token that points at one. Sessions expire when idle.
     /// </summary>
     public class ConnectionManager : IConnectionManager
     {
-        private readonly ConcurrentDictionary<string, ConnectionSession> _sessions;
+        private readonly ConcurrentDictionary<string, ConnectionSession> _sessions = new();
         private readonly ILogger<ConnectionManager> _logger;
         private readonly IJwtService _jwtService;
+        private readonly SecuritySettings _settings;
 
-        public ConnectionManager(ILogger<ConnectionManager> logger, IJwtService jwtService)
+        public ConnectionManager(ILogger<ConnectionManager> logger, IJwtService jwtService, SecuritySettings settings)
         {
-            _sessions = new ConcurrentDictionary<string, ConnectionSession>();
             _logger = logger;
             _jwtService = jwtService;
+            _settings = settings;
         }
 
         public Task<string> CreateConnectionAsync(ConnectionDetails connectionDetails)
         {
             try
             {
-                // Validate connection details
-                if (string.IsNullOrWhiteSpace(connectionDetails.ServerName))
-                {
-                    throw new ArgumentException("Server name is required");
-                }
+                ValidateConnectionDetails(connectionDetails);
+                RemoveExpiredSessions();
 
-                // Generate a unique session ID
+                if (_sessions.Count >= _settings.MaxSessions)
+                    throw new InvalidOperationException("Too many open sessions. Disconnect one and try again.");
+
                 string sessionId = Guid.NewGuid().ToString();
-
-                // Build connection string
-                string connectionString = BuildConnectionString(connectionDetails);
-
-                // Create session
                 var session = new ConnectionSession
                 {
                     SessionToken = sessionId,
-                    ConnectionString = connectionString,
+                    ConnectionString = BuildConnectionString(connectionDetails),
                     ConnectionDetails = connectionDetails,
                     CreatedAt = DateTime.UtcNow,
                     LastAccessedAt = DateTime.UtcNow
@@ -47,10 +45,9 @@ namespace WebSql.Server.Services
 
                 _sessions.TryAdd(sessionId, session);
 
-                // Generate JWT token
                 string jwtToken = _jwtService.GenerateToken(sessionId, connectionDetails.ServerName);
 
-                _logger.LogInformation("Created new connection session: {SessionId} for server: {Server}", 
+                _logger.LogInformation("Created new connection session: {SessionId} for server: {Server}",
                     sessionId, connectionDetails.ServerName);
 
                 return Task.FromResult(jwtToken);
@@ -64,21 +61,11 @@ namespace WebSql.Server.Services
 
         public string? GetConnectionString(string jwtToken)
         {
-            var sessionId = _jwtService.GetSessionIdFromToken(jwtToken);
-            if (string.IsNullOrEmpty(sessionId))
-            {
-                _logger.LogWarning("Invalid JWT token");
-                return null;
-            }
+            var session = FindLiveSession(jwtToken);
+            if (session is null) return null;
 
-            if (_sessions.TryGetValue(sessionId, out var session))
-            {
-                session.LastAccessedAt = DateTime.UtcNow;
-                return session.ConnectionString;
-            }
-
-            _logger.LogWarning("Session not found: {SessionId}", sessionId);
-            return null;
+            session.LastAccessedAt = DateTime.UtcNow;
+            return session.ConnectionString;
         }
 
         public Task DisconnectAsync(string jwtToken)
@@ -91,64 +78,116 @@ namespace WebSql.Server.Services
             }
 
             if (_sessions.TryRemove(sessionId, out _))
-            {
                 _logger.LogInformation("Disconnected session: {SessionId}", sessionId);
-            }
             else
-            {
                 _logger.LogWarning("Attempted to disconnect non-existent session: {SessionId}", sessionId);
-            }
 
             return Task.CompletedTask;
         }
 
-        public bool ValidateSession(string jwtToken)
-        {
-            if (string.IsNullOrWhiteSpace(jwtToken))
-                return false;
-
-            // JWT validates expiration automatically
-            var principal = _jwtService.ValidateToken(jwtToken);
-            if (principal == null)
-                return false;
-
-            var sessionId = principal.FindFirst("sessionId")?.Value;
-            if (string.IsNullOrEmpty(sessionId))
-                return false;
-
-            return _sessions.ContainsKey(sessionId);
-        }
+        public bool ValidateSession(string jwtToken) => FindLiveSession(jwtToken) is not null;
 
         public void UpdateDatabase(string jwtToken, string database)
         {
-            var sessionId = _jwtService.GetSessionIdFromToken(jwtToken);
-            if (string.IsNullOrEmpty(sessionId))
-                return;
+            if (string.IsNullOrWhiteSpace(database) || database.Length > 128)
+                throw new ArgumentException("A valid database name is required");
 
-            if (_sessions.TryGetValue(sessionId, out var session))
-            {
-                var details = session.ConnectionDetails;
-                details.SelectedDatabase = database;
-                session.ConnectionString = BuildConnectionString(details);
-                session.LastAccessedAt = DateTime.UtcNow;
+            var session = FindLiveSession(jwtToken);
+            if (session is null) return;
 
-                _logger.LogInformation("Updated database for session {SessionId} to {Database}", 
-                    sessionId, database);
-            }
+            var details = session.ConnectionDetails;
+            details.SelectedDatabase = database;
+            session.ConnectionString = BuildConnectionString(details);
+            session.LastAccessedAt = DateTime.UtcNow;
+
+            _logger.LogInformation("Updated database for session {SessionId} to {Database}", session.SessionToken, database);
         }
 
-        private string BuildConnectionString(ConnectionDetails details)
-        {
-            string connectionString = details.IntegratedSecurity
-                ? $"Data Source={details.ServerName};Integrated Security=True;TrustServerCertificate=True;"
-                : $"Data Source={details.ServerName};User Id={details.Login};Password={details.Password};TrustServerCertificate=True;";
+        // ---- policy ---------------------------------------------------------------------------
 
-            if (!string.IsNullOrWhiteSpace(details.SelectedDatabase))
+        private void ValidateConnectionDetails(ConnectionDetails details)
+        {
+            if (string.IsNullOrWhiteSpace(details.ServerName))
+                throw new ArgumentException("Server name is required");
+
+            if (details.ServerName.Length > 255 || details.ServerName.Any(char.IsControl))
+                throw new ArgumentException("Server name is not valid");
+
+            if (details.IntegratedSecurity && !_settings.AllowIntegratedSecurity)
+                throw new InvalidOperationException(
+                    "Integrated security is disabled on this server. Use a SQL login.");
+
+            if (!details.IntegratedSecurity && string.IsNullOrWhiteSpace(details.Login))
+                throw new ArgumentException("Login is required");
+
+            if (_settings.AllowedServers.Length > 0 &&
+                !_settings.AllowedServers.Any(s => string.Equals(s.Trim(), details.ServerName.Trim(), StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException("That server is not on this WebSql instance's allowed list.");
+        }
+
+        // ---- sessions -------------------------------------------------------------------------
+
+        private ConnectionSession? FindLiveSession(string jwtToken)
+        {
+            if (string.IsNullOrWhiteSpace(jwtToken)) return null;
+
+            var sessionId = _jwtService.GetSessionIdFromToken(jwtToken);
+            if (string.IsNullOrEmpty(sessionId)) return null;
+
+            if (!_sessions.TryGetValue(sessionId, out var session))
             {
-                connectionString += $"Initial Catalog={details.SelectedDatabase};";
+                _logger.LogWarning("Session not found: {SessionId}", sessionId);
+                return null;
             }
 
-            return connectionString;
+            if (IsExpired(session))
+            {
+                _sessions.TryRemove(sessionId, out _);
+                _logger.LogInformation("Session {SessionId} expired after being idle", sessionId);
+                return null;
+            }
+
+            return session;
+        }
+
+        private bool IsExpired(ConnectionSession session) =>
+            DateTime.UtcNow - session.LastAccessedAt > TimeSpan.FromMinutes(_settings.SessionIdleMinutes);
+
+        private void RemoveExpiredSessions()
+        {
+            foreach (var (id, session) in _sessions)
+                if (IsExpired(session))
+                    _sessions.TryRemove(id, out _);
+        }
+
+        // ---- connection string ----------------------------------------------------------------
+
+        // Built with SqlConnectionStringBuilder so user-supplied values are escaped, never concatenated
+        // (a password like "x;Integrated Security=True" stays a password).
+        private string BuildConnectionString(ConnectionDetails details)
+        {
+            var builder = new SqlConnectionStringBuilder
+            {
+                DataSource = details.ServerName.Trim(),
+                TrustServerCertificate = _settings.TrustServerCertificate,
+                ConnectTimeout = 15,
+                ApplicationName = "WebSql"
+            };
+
+            if (details.IntegratedSecurity)
+            {
+                builder.IntegratedSecurity = true;
+            }
+            else
+            {
+                builder.UserID = details.Login ?? string.Empty;
+                builder.Password = details.Password ?? string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(details.SelectedDatabase))
+                builder.InitialCatalog = details.SelectedDatabase;
+
+            return builder.ConnectionString;
         }
 
         private class ConnectionSession

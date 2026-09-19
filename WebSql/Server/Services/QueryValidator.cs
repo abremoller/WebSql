@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace WebSql.Server.Services
@@ -9,25 +10,40 @@ namespace WebSql.Server.Services
         Enabled    // Allow without confirmation
     }
 
+    /// <summary>
+    /// A safety net against accidents (a forgotten WHERE, a stray DROP). It is NOT a security boundary:
+    /// dynamic SQL can always be assembled in ways a scanner will miss. The real boundary is the
+    /// permissions of the SQL login the user connects with - use a least-privilege login.
+    /// </summary>
     public class QueryValidator
     {
         private readonly DangerousOperationsMode _mode;
 
-        private static readonly string[] DangerousKeywords = new[]
-        {
-            "DROP DATABASE",
-            "DROP TABLE",
-            "DROP VIEW", 
-            "DROP PROCEDURE",
-            "DROP FUNCTION",
-            "TRUNCATE",
-            "SHUTDOWN",
-            "DBCC",
-            "xp_cmdshell",
-            "sp_configure",
-            "BACKUP",
-            "RESTORE"
-        };
+        private const RegexOptions Opts = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
+
+        // Matched against the query with comments removed (string contents are KEPT, so a statement
+        // hidden inside EXEC('...') is still seen; the cost is an occasional over-cautious prompt).
+        private static readonly (string Label, Regex Pattern)[] DangerousPatterns =
+        [
+            ("DROP", new(@"\bDROP\s+(DATABASE|TABLE|VIEW|PROC(EDURE)?|FUNCTION|SCHEMA|INDEX|TRIGGER|LOGIN|USER|ROLE)\b", Opts)),
+            ("TRUNCATE", new(@"\bTRUNCATE\b", Opts)),
+            ("SHUTDOWN", new(@"\bSHUTDOWN\b", Opts)),
+            ("DBCC", new(@"\bDBCC\b", Opts)),
+            ("xp_ extended procedure", new(@"\bxp_\w+", Opts)),
+            ("sp_configure", new(@"\bsp_configure\b", Opts)),
+            ("BACKUP", new(@"\bBACKUP\b", Opts)),
+            ("RESTORE", new(@"\bRESTORE\b", Opts)),
+            ("EXEC / dynamic SQL", new(@"\b(EXEC|EXECUTE|sp_executesql)\b", Opts)),
+            ("OPENROWSET/OPENDATASOURCE/OPENQUERY", new(@"\b(OPENROWSET|OPENDATASOURCE|OPENQUERY)\b", Opts)),
+            ("BULK INSERT", new(@"\bBULK\s+INSERT\b", Opts)),
+            ("ALTER DATABASE/LOGIN/SERVER", new(@"\bALTER\s+(DATABASE|LOGIN|SERVER|AUTHORIZATION)\b", Opts)),
+            ("CREATE LOGIN", new(@"\bCREATE\s+LOGIN\b", Opts)),
+            ("GRANT/REVOKE/DENY", new(@"\b(GRANT|REVOKE|DENY)\b", Opts)),
+        ];
+
+        private static readonly Regex DeleteRx = new(@"\bDELETE\b", Opts);
+        private static readonly Regex UpdateRx = new(@"\bUPDATE\b", Opts);
+        private static readonly Regex WhereRx = new(@"\bWHERE\b", Opts);
 
         public QueryValidator(DangerousOperationsMode mode)
         {
@@ -46,33 +62,25 @@ namespace WebSql.Server.Services
                 };
             }
 
-            var normalizedQuery = query.ToUpperInvariant().Trim();
+            var (code, codeNoStrings) = Sanitize(query);
             var dangerousOps = new List<string>();
 
-            // Check for dangerous operations
-            foreach (var keyword in DangerousKeywords)
+            foreach (var (label, pattern) in DangerousPatterns)
+                if (pattern.IsMatch(code))
+                    dangerousOps.Add(label);
+
+            // UPDATE / DELETE with no WHERE - judged per statement (a WHERE in a *different* statement
+            // does not count) and ignoring text inside string literals ('...where...' does not count).
+            var statements = codeNoStrings.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var statement in statements)
             {
-                if (normalizedQuery.Contains(keyword))
-                {
-                    dangerousOps.Add(keyword);
-                }
+                if (WhereRx.IsMatch(statement)) continue;
+                if (DeleteRx.IsMatch(statement)) dangerousOps.Add("DELETE without WHERE");
+                if (UpdateRx.IsMatch(statement)) dangerousOps.Add("UPDATE without WHERE");
             }
 
-            // Check for DELETE without WHERE
-            if (Regex.IsMatch(normalizedQuery, @"\bDELETE\s+FROM\b") && 
-                !Regex.IsMatch(normalizedQuery, @"\bWHERE\b"))
-            {
-                dangerousOps.Add("DELETE without WHERE");
-            }
+            dangerousOps = dangerousOps.Distinct().ToList();
 
-            // Check for UPDATE without WHERE
-            if (Regex.IsMatch(normalizedQuery, @"\bUPDATE\b") && 
-                !Regex.IsMatch(normalizedQuery, @"\bWHERE\b"))
-            {
-                dangerousOps.Add("UPDATE without WHERE");
-            }
-
-            // Handle dangerous operations based on mode
             if (dangerousOps.Any())
             {
                 switch (_mode)
@@ -99,23 +107,19 @@ namespace WebSql.Server.Services
                                 RequiresConfirmation = true
                             };
                         }
-                        // User confirmed, allow execution
-                        break;
+                        break; // user confirmed
 
                     case DangerousOperationsMode.Enabled:
-                        // Allow all operations without confirmation
                         break;
                 }
             }
 
-            // Warn about multiple statements (SQL injection risk)
-            var statementCount = query.Split(';', StringSplitOptions.RemoveEmptyEntries).Length;
-            if (statementCount > 1)
+            if (statements.Length > 1)
             {
                 return new QueryValidationResult
                 {
                     IsValid = true,
-                    WarningMessage = $"Query contains {statementCount} statements. Be cautious with batch queries.",
+                    WarningMessage = $"Query contains {statements.Length} statements. Be cautious with batch queries.",
                     Severity = ValidationSeverity.Warning
                 };
             }
@@ -125,6 +129,67 @@ namespace WebSql.Server.Services
                 IsValid = true,
                 Severity = ValidationSeverity.None
             };
+        }
+
+        /// <summary>
+        /// Walks the SQL once, correctly handling '...' strings (with '' escapes), [bracketed] and "quoted"
+        /// identifiers, -- line comments and nested /* block */ comments. Returns the query with comments
+        /// removed (strings kept), and again with string / identifier contents blanked.
+        /// </summary>
+        public static (string Code, string CodeNoStrings) Sanitize(string sql)
+        {
+            var code = new StringBuilder(sql.Length);
+            var bare = new StringBuilder(sql.Length);
+            var i = 0;
+
+            while (i < sql.Length)
+            {
+                var c = sql[i];
+
+                if (c == '-' && i + 1 < sql.Length && sql[i + 1] == '-')
+                {
+                    while (i < sql.Length && sql[i] != '\n') i++;
+                    code.Append(' '); bare.Append(' ');
+                }
+                else if (c == '/' && i + 1 < sql.Length && sql[i + 1] == '*')
+                {
+                    var depth = 1;
+                    i += 2;
+                    while (i < sql.Length && depth > 0)
+                    {
+                        if (sql[i] == '/' && i + 1 < sql.Length && sql[i + 1] == '*') { depth++; i += 2; }
+                        else if (sql[i] == '*' && i + 1 < sql.Length && sql[i + 1] == '/') { depth--; i += 2; }
+                        else i++;
+                    }
+                    code.Append(' '); bare.Append(' ');
+                }
+                else if (c == '\'' || c == '"' || c == '[')
+                {
+                    var close = c == '[' ? ']' : c;
+                    var start = i;
+                    i++;
+                    while (i < sql.Length)
+                    {
+                        if (sql[i] == close)
+                        {
+                            if (i + 1 < sql.Length && sql[i + 1] == close) { i += 2; continue; } // doubled = escaped
+                            break;
+                        }
+                        i++;
+                    }
+                    var end = Math.Min(i + 1, sql.Length);
+                    code.Append(sql, start, end - start);
+                    bare.Append(c).Append(close);
+                    i = end;
+                }
+                else
+                {
+                    code.Append(c); bare.Append(c);
+                    i++;
+                }
+            }
+
+            return (code.ToString(), bare.ToString());
         }
     }
 

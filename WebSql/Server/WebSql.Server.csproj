@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <UserSecretsId>websql-server-5d0f2c1e-8b47-4a3e-9c1d-2f6a7b3e4d10</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

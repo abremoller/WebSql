@@ -4,6 +4,7 @@ using WebSql.Shared.DTOs;
 
 namespace WebSql.Server.Controllers
 {
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("fixed")]
     [ApiController]
     [Route("api/[controller]")]
     public class QueryController : ControllerBase

@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using Microsoft.Data.SqlClient;
 using WebSql.DataAccess;
 using WebSql.Shared;
 
@@ -15,11 +16,13 @@ namespace WebSql.Server
 
 		private async Task PopulateDatabasesAsync()
 		{
-			string conn = _connectionString;
-			if (!conn.Contains("Initial Catalog", StringComparison.OrdinalIgnoreCase))
+			// Use the builder rather than string-appending, so values are escaped properly.
+			var connBuilder = new SqlConnectionStringBuilder(_connectionString);
+			if (string.IsNullOrWhiteSpace(connBuilder.InitialCatalog))
 			{
-				conn += $"Initial Catalog={__MasterDBName};";
+				connBuilder.InitialCatalog = __MasterDBName;
 			}
+			string conn = connBuilder.ConnectionString;
 
 			_databases = new List<string>();
 
@@ -65,15 +68,9 @@ namespace WebSql.Server
 
 	private async Task PopulateDatabaseStructuresAsync(Database db)
 	{
-		string conn = _connectionString;
-		// Remove any existing Initial Catalog and add the new one
-		if (conn.Contains("Initial Catalog", StringComparison.OrdinalIgnoreCase))
-		{
-			var parts = conn.Split(';');
-			conn = string.Join(";", parts.Where(p => !p.Trim().StartsWith("Initial Catalog", StringComparison.OrdinalIgnoreCase))) + ";";
-		}
-		conn += $"Initial Catalog={db.Name};";
-		
+		// Switch the catalog via the builder: a database name containing ';' or '=' can't inject keywords.
+		string conn = new SqlConnectionStringBuilder(_connectionString) { InitialCatalog = db.Name }.ConnectionString;
+
 		MSSQL sql = new MSSQL(conn);
 		db.Tables = new List<Table>();
 		var (dt, _, _) = await sql.RunQueryAsync(__GetTables);

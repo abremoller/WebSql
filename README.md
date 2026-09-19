@@ -8,8 +8,9 @@ WebSql is designed to be a powerful, browser-based SQL client that can be self-h
 
 ## ✨ Current Features (MVP)
 
-- 🔐 **Secure Connection Management** - Session-based authentication with server-side connection storage
-- 🗄️ **SQL Server Support** - Connect to SQL Server databases with integrated or SQL authentication
+- 🔐 **Login-protected** - The whole site sits behind a login (it refuses all requests until you configure one)
+- 🔒 **Secure Connection Management** - Connection strings live server-side; sessions expire when idle
+- 🗄️ **SQL Server Support** - Connect with a SQL login (integrated security exists but is off by default)
 - 🌳 **Object Explorer** - Browse databases, tables, columns, and schema information
 - ⚡ **Query Execution** - Write and execute SQL queries with real-time results
 - 📊 **Results Grid** - View query results in a clean, tabular format
@@ -23,8 +24,8 @@ WebSql is designed to be a powerful, browser-based SQL client that can be self-h
 - **UI Framework:** Havit Blazor Components
 - **Database:** SQL Server with Microsoft.Data.SqlClient
 - **Target Platform:** .NET 8.0 LTS
-- **Authentication:** JWT (JSON Web Tokens)
-- **Security:** Rate limiting, CORS policies
+- **Authentication:** HTTP Basic login in front of everything (PBKDF2-hashed password, per-IP lockout, optional IP allowlist); JWT session tokens for database sessions
+- **Security:** see [Security](#-security) below
 
 ## 🚀 Getting Started
 
@@ -43,6 +44,7 @@ cd WebSql
 # Restore dependencies
 dotnet restore
 
+# Configure the login (see Security below) - the site refuses every request until you do
 # Run the server project
 cd WebSql/Server
 dotnet run
@@ -61,18 +63,52 @@ Comprehensive documentation is available in the [Documentation](./Documentation)
 
 ## 🔐 Security
 
-**Recent Security Improvements:**
-- ✅ Connection strings no longer exposed in URLs
-- ✅ Session-based authentication with secure token management
-- ✅ Server-side connection string storage
-- ✅ Automatic session expiration (24 hours)
-- ✅ All API endpoints use POST requests with request validation
+WebSql can run arbitrary SQL against whatever server you point it at, so treat it like the database itself. **Do not expose it to the internet without HTTPS, a strong password and (ideally) an IP allowlist.**
 
-**Planned Security Enhancements:**
-- JWT authentication
-- Rate limiting
-- CORS policies
-- Parameterized query enforcement
+### First-time setup (required)
+
+The site **refuses every request until a login is configured**.
+
+1. Generate a password hash (minimum 12 characters; input is not echoed):
+
+   `dotnet run --project WebSql/Server -- hash-password`
+
+2. Store it with the username. In development use user-secrets; in production use environment variables (`Auth__Username`, `Auth__PasswordHash`) or your host's secret store. Never commit them:
+
+   ```
+   cd WebSql/Server
+   dotnet user-secrets set "Auth:Username" "your-username"
+   dotnet user-secrets set "Auth:PasswordHash" "<the hash from step 1>"
+   ```
+
+### Settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `Auth:AllowedIps` | `[]` | If set, only these client IPs can reach the site at all |
+| `Auth:MaxFailedAttempts` / `Auth:LockoutMinutes` | 5 / 15 | Failed-login lockout, per IP |
+| `Security:AllowIntegratedSecurity` | `false` | Allow connecting as the Windows account the app runs under. Leave off unless you understand that every WebSql user then inherits that account's SQL access |
+| `Security:TrustServerCertificate` | `false` | Skip SQL Server certificate validation. Turn on only for self-signed certificates you trust |
+| `Security:AllowedServers` | `[]` | If set, users can only connect to these servers |
+| `Security:SessionIdleMinutes` / `Security:MaxSessions` | 30 / 25 | Idle sessions are dropped and their credentials forgotten |
+| `Security:DangerousOperationsMode` | `Prompt` | `Disabled`, `Prompt` or `Enabled` for DROP, TRUNCATE, EXEC, UPDATE/DELETE without WHERE and similar |
+| `RateLimiting:ConnectPermitLimit` | 10 per minute per IP | Throttles connection attempts (guessing SQL logins) |
+| `JwtSettings:SecretKey` | empty | Leave empty: a random key is generated at startup (sessions do not survive restarts anyway). A configured key must be 32+ characters |
+
+### What is protected
+
+- ✅ Everything (pages, framework files, API) is behind the login; wrong passwords lock out the IP
+- ✅ Connection strings are built with `SqlConnectionStringBuilder` (no injection through server, login, password or database name) and never leave the server
+- ✅ Integrated security and certificate trust are opt-in; optional server allowlist
+- ✅ Idle sessions expire; per-IP rate limits (tighter on `connect`); no secrets committed to git
+- ✅ The old unauthenticated `SQL/RunQuery/...` and `SQL/GetServerExplorer/...` GET endpoints (connection string in the URL) were removed
+
+### Notes
+
+- The dangerous-operation prompt is a guard against **accidents**, not a security boundary. The real boundary is the permissions of the SQL login you connect with: **use a least-privilege (ideally read-only) login.**
+- The login uses HTTP Basic auth, so it is only safe over HTTPS.
+- Behind a reverse proxy, the client IP used for lockout and the allowlist is the address the app sees; make sure the real client address is passed through before relying on `Auth:AllowedIps`.
+- Run `dotnet test` for the 68 tests covering the login, connection policy and query guard.
 
 ## 🛣️ Roadmap
 
@@ -80,7 +116,7 @@ Comprehensive documentation is available in the [Documentation](./Documentation)
 - [x] Secure connection management
 - [x] Async/await architecture
 - [x] Session-based authentication
-- [ ] JWT authentication
+- [x] Login protection, rate limiting, session expiry
 - [ ] Monaco code editor integration
 - [ ] Advanced results display
 
