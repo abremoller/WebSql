@@ -18,6 +18,11 @@ namespace WebSql.Server.Services
         string? GetConnectionString(string sessionToken);
 
         /// <summary>
+        /// Gets which database engine a session is connected to (SQL Server if the session is unknown)
+        /// </summary>
+        DatabaseEngine GetEngine(string sessionToken);
+
+        /// <summary>
         /// Removes a connection session
         /// </summary>
         Task DisconnectAsync(string sessionToken);

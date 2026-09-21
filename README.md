@@ -10,7 +10,7 @@ WebSql is designed to be a powerful, browser-based SQL client that can be self-h
 
 - 🔐 **Login-protected** - The whole site sits behind a login (it refuses all requests until you configure one)
 - 🔒 **Secure Connection Management** - Connection strings live server-side; sessions expire when idle
-- 🗄️ **SQL Server Support** - Connect with a SQL login (integrated security exists but is off by default)
+- 🗄️ **SQL Server and MySQL/MariaDB** - Pick the server type in the connection dialog; connect with a login (SQL Server integrated security exists but is off by default)
 - 🌳 **Object Explorer** - Browse databases, tables, columns, and schema information
 - ⚡ **Query Execution** - Write and execute SQL queries with real-time results
 - 📊 **Results Grid** - View query results in a clean, tabular format
@@ -22,7 +22,7 @@ WebSql is designed to be a powerful, browser-based SQL client that can be self-h
 - **Frontend:** Blazor WebAssembly (C#)
 - **Backend:** ASP.NET Core Web API
 - **UI Framework:** Havit Blazor Components
-- **Database:** SQL Server with Microsoft.Data.SqlClient
+- **Database:** SQL Server (Microsoft.Data.SqlClient) and MySQL/MariaDB (MySqlConnector)
 - **Target Platform:** .NET 8.0 LTS
 - **Authentication:** HTTP Basic login in front of everything (PBKDF2-hashed password, per-IP lockout, optional IP allowlist); JWT session tokens for database sessions
 - **Security:** see [Security](#-security) below
@@ -31,7 +31,7 @@ WebSql is designed to be a powerful, browser-based SQL client that can be self-h
 
 ### Prerequisites
 - .NET 8.0 SDK or later
-- SQL Server (for database connections)
+- A database to connect to: SQL Server, or MySQL/MariaDB (see [Trying it with MySQL](#trying-it-with-mysql))
 - Visual Studio 2022 or VS Code with C# extension
 
 ### Running Locally
@@ -51,6 +51,21 @@ dotnet run
 ```
 
 Navigate to `https://localhost:7xxx` in your browser.
+
+### Trying it with MySQL
+
+Any MySQL 5.7+/8.x or MariaDB server works. The quickest free local option is Docker:
+
+```powershell
+docker run --name websql-mysql -e MYSQL_ROOT_PASSWORD=devpass -e MYSQL_DATABASE=demo -p 3306:3306 -d mysql:8
+```
+
+Then choose **MySQL / MariaDB** in the connection dialog, use server `localhost:3306` (or just `localhost`), login `root` and the password above.
+
+The MySQL container uses a self-signed certificate, and WebSql validates certificates by default, so for local testing set
+`Security:TrustServerCertificate` to `true` (for example in `appsettings.Development.json`). Don't leave that on for real servers.
+
+For MySQL, a "schema" is a database, so the Object Explorer lists each database with its tables directly.
 
 ## 📚 Documentation
 

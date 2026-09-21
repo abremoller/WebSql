@@ -27,6 +27,7 @@ namespace WebSql.Server.Controllers
             {
                 var connectionDetails = new ConnectionDetails
                 {
+                    Engine = request.Engine,
                     ServerName = request.ServerName,
                     Login = request.Login,
                     Password = request.Password,

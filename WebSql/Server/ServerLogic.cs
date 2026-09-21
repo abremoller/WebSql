@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using Microsoft.Data.SqlClient;
+using MySqlConnector;
 using WebSql.DataAccess;
 using WebSql.Shared;
 
@@ -8,26 +9,41 @@ namespace WebSql.Server
     public class ServerLogic
     {
 		const string __GetDatabases = "select * from sys.databases order by name asc";
+		const string __GetMySqlDatabases = "select SCHEMA_NAME as name from INFORMATION_SCHEMA.SCHEMATA order by SCHEMA_NAME asc";
 		const string __GetTables = "select * from INFORMATION_SCHEMA.COLUMNS";
 		const string __MasterDBName = "master";
 
 		private List<string> _databases = new();
 		private string _connectionString = string.Empty;
+		private DatabaseEngine _engine = DatabaseEngine.SqlServer;
 
 		private async Task PopulateDatabasesAsync()
 		{
-			// Use the builder rather than string-appending, so values are escaped properly.
-			var connBuilder = new SqlConnectionStringBuilder(_connectionString);
-			if (string.IsNullOrWhiteSpace(connBuilder.InitialCatalog))
+			string conn;
+			string query;
+
+			if (_engine == DatabaseEngine.MySql)
 			{
-				connBuilder.InitialCatalog = __MasterDBName;
+				// MySQL can list every schema without selecting one first.
+				conn = _connectionString;
+				query = __GetMySqlDatabases;
 			}
-			string conn = connBuilder.ConnectionString;
+			else
+			{
+				// Use the builder rather than string-appending, so values are escaped properly.
+				var connBuilder = new SqlConnectionStringBuilder(_connectionString);
+				if (string.IsNullOrWhiteSpace(connBuilder.InitialCatalog))
+				{
+					connBuilder.InitialCatalog = __MasterDBName;
+				}
+				conn = connBuilder.ConnectionString;
+				query = __GetDatabases;
+			}
 
 			_databases = new List<string>();
 
-			MSSQL sql = new MSSQL(conn);
-			var (dt, _, _) = await sql.RunQueryAsync(__GetDatabases);
+			var sql = new DatabaseRunner(_engine, conn);
+			var (dt, _, _) = await sql.RunQueryAsync(query);
 
 			foreach (DataRow row in dt.Rows)
 			{
@@ -68,12 +84,27 @@ namespace WebSql.Server
 
 	private async Task PopulateDatabaseStructuresAsync(Database db)
 	{
-		// Switch the catalog via the builder: a database name containing ';' or '=' can't inject keywords.
-		string conn = new SqlConnectionStringBuilder(_connectionString) { InitialCatalog = db.Name }.ConnectionString;
+		string conn;
+		string query = __GetTables;
 
-		MSSQL sql = new MSSQL(conn);
+		// Switch the catalog via the builder: a database name containing ';' or '=' can't inject keywords.
+		if (_engine == DatabaseEngine.MySql)
+		{
+			conn = new MySqlConnectionStringBuilder(_connectionString) { Database = db.Name }.ConnectionString;
+			// In MySQL a "schema" is a database, so TABLE_SCHEMA is the database name. Filter to this one.
+			query = "select TABLE_SCHEMA as TABLE_SCHEMA, TABLE_NAME as TABLE_NAME, COLUMN_NAME as COLUMN_NAME, DATA_TYPE as DATA_TYPE " +
+				"from INFORMATION_SCHEMA.COLUMNS " +
+				$"where TABLE_SCHEMA = '{_engine.EscapeStringLiteral(db.Name)}' " +
+				"order by TABLE_NAME, ORDINAL_POSITION";
+		}
+		else
+		{
+			conn = new SqlConnectionStringBuilder(_connectionString) { InitialCatalog = db.Name }.ConnectionString;
+		}
+
+		var sql = new DatabaseRunner(_engine, conn);
 		db.Tables = new List<Table>();
-		var (dt, _, _) = await sql.RunQueryAsync(__GetTables);
+		var (dt, _, _) = await sql.RunQueryAsync(query);
 
 		DataView view = new DataView(dt);
 		DataTable distinctValues = view.ToTable(true, "TABLE_SCHEMA", "TABLE_NAME");
@@ -117,17 +148,18 @@ namespace WebSql.Server
 			return columns;
         }
 
-        public static async Task<ObjectExplorer> GetObjectExplorerAsync(string connectionString)
+        public static async Task<ObjectExplorer> GetObjectExplorerAsync(DatabaseEngine engine, string connectionString)
         {
 			ServerLogic logic = new ServerLogic();
+			logic._engine = engine;
 			logic._connectionString = connectionString;
 			await logic.PopulateDatabasesAsync();
 			return await logic.ReadObjectExplorerAsync();
         }
 
-		public static async Task<(Table Table, int RowsAffected, double ExecutionTimeMs)> RunQueryAsync(string connectionString, string query)
+		public static async Task<(Table Table, int RowsAffected, double ExecutionTimeMs)> RunQueryAsync(DatabaseEngine engine, string connectionString, string query)
         {
-			MSSQL sql = new MSSQL(connectionString);
+			var sql = new DatabaseRunner(engine, connectionString);
 			var (dt, executionTime, rowsAffected) = await sql.RunQueryAsync(query);
 
 			Table table = new Table();

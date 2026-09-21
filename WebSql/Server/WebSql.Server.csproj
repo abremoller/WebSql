@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\WebSql.DataAccess\WebSql.DataAccess.csproj" />
     <ProjectReference Include="..\Client\WebSql.Client.csproj" />
     <ProjectReference Include="..\Shared\WebSql.Shared.csproj" />
   </ItemGroup>

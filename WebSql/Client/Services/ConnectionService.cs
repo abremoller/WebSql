@@ -8,6 +8,7 @@ namespace WebSql.Client.Services
 	{
 		private string? _sessionToken;
 		private string _selectedDatabase = "master";
+		private DatabaseEngine _engine = DatabaseEngine.SqlServer;
 		private Table? _table;
 		private ObjectExplorer? _objectExplorer = null;
 		private readonly HttpClient _http;
@@ -22,6 +23,7 @@ namespace WebSql.Client.Services
 		public ObjectExplorer? ObjectExplorer => _objectExplorer;
 		public string? SessionToken => _sessionToken;
 		public bool Connected => !string.IsNullOrEmpty(_sessionToken);
+		public DatabaseEngine Engine => _engine;
 		public string SelectedDatabase 
 		{ 
 			get => _selectedDatabase; 
@@ -39,7 +41,8 @@ namespace WebSql.Client.Services
 				
 				var request = new ConnectRequest
 				{
-					ServerName = ConnectionDetails.ServerName,
+					Engine = ConnectionDetails.Engine,
+						ServerName = ConnectionDetails.ServerName,
 					Login = ConnectionDetails.Login,
 					Password = ConnectionDetails.Password,
 					IntegratedSecurity = ConnectionDetails.IntegratedSecurity
@@ -56,6 +59,9 @@ namespace WebSql.Client.Services
 					if (result?.Success == true)
 					{
 						_sessionToken = result.SessionToken;
+						_engine = ConnectionDetails.Engine;
+						// SQL Server sessions start in master; MySQL has no default until one is picked (see GetExplorerAsync).
+						_selectedDatabase = _engine == DatabaseEngine.SqlServer ? "master" : string.Empty;
 						return true;
 					}
 				}
@@ -100,6 +106,13 @@ namespace WebSql.Client.Services
 						_objectExplorer = result.Explorer;
 						DatabaseNames = _objectExplorer.Server.Databases.Select(x => x.Name).ToList();
 						Console.WriteLine($"[ConnectionService] Explorer loaded: {DatabaseNames.Count()} databases");
+
+						if (_engine == DatabaseEngine.MySql && string.IsNullOrEmpty(_selectedDatabase))
+						{
+							var first = PickDefaultMySqlDatabase(DatabaseNames);
+							if (first != null)
+								await ChangeDatabaseAsync(first);
+						}
 						return true;
 					}
 				}
@@ -165,6 +178,12 @@ namespace WebSql.Client.Services
 				return (0, ex.Message, false);
 			}
         }
+
+		// Skip the built-in schemas so the first thing you see is your own data.
+		private static readonly string[] MySqlSystemDatabases = { "information_schema", "mysql", "performance_schema", "sys" };
+
+		private static string? PickDefaultMySqlDatabase(IEnumerable<string> names) =>
+			names.FirstOrDefault(n => !MySqlSystemDatabases.Contains(n, StringComparer.OrdinalIgnoreCase)) ?? names.FirstOrDefault();
 
 		public async Task<bool> ChangeDatabaseAsync(string databaseName)
 		{

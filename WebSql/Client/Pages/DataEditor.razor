@@ -315,7 +315,7 @@
         try
         {
             // Build SELECT query
-            var query = $"SELECT * FROM [{selectedTable.Schema}].[{selectedTable.Name}] WHERE {whereClause}";
+            var query = $"SELECT * FROM {TableRef()} WHERE {whereClause}";
             
             await ConnectionService.ChangeDatabaseAsync(selectedDatabase!);
             var (rowCount, error, requiresConfirmation) = await ConnectionService.RunQuery(query, true);
@@ -381,20 +381,20 @@
             {
                 // UPDATE existing row
                 var setClauses = columns.Select((col, i) => 
-                    $"[{col.Name}] = {FormatSqlValue(editValues[i], col.Type)}").ToList();
+                    $"{Quote(col.Name)} = {FormatSqlValue(editValues[i], col.Type)}").ToList();
                 
                 var whereParts = columns.Select((col, i) => 
-                    $"[{col.Name}] = {FormatSqlValue(rows[editingRowIndex.Value][i], col.Type)}").ToList();
+                    $"{Quote(col.Name)} = {FormatSqlValue(rows[editingRowIndex.Value][i], col.Type)}").ToList();
                 
-                query = $"UPDATE [{selectedTable.Schema}].[{selectedTable.Name}] SET {string.Join(", ", setClauses)} WHERE {string.Join(" AND ", whereParts)}";
+                query = $"UPDATE {TableRef()} SET {string.Join(", ", setClauses)} WHERE {string.Join(" AND ", whereParts)}";
             }
             else
             {
                 // INSERT new row
-                var columnNames = string.Join(", ", columns.Select(c => $"[{c.Name}]"));
+                var columnNames = string.Join(", ", columns.Select(c => Quote(c.Name)));
                 var values = string.Join(", ", columns.Select((col, i) => FormatSqlValue(editValues[i], col.Type)));
                 
-                query = $"INSERT INTO [{selectedTable.Schema}].[{selectedTable.Name}] ({columnNames}) VALUES ({values})";
+                query = $"INSERT INTO {TableRef()} ({columnNames}) VALUES ({values})";
             }
 
             await ConnectionService.ChangeDatabaseAsync(selectedDatabase!);
@@ -430,9 +430,9 @@
         try
         {
             var whereParts = columns.Select((col, i) => 
-                $"[{col.Name}] = {FormatSqlValue(rows[rowIndex][i], col.Type)}").ToList();
+                $"{Quote(col.Name)} = {FormatSqlValue(rows[rowIndex][i], col.Type)}").ToList();
             
-            var query = $"DELETE FROM [{selectedTable.Schema}].[{selectedTable.Name}] WHERE {string.Join(" AND ", whereParts)}";
+            var query = $"DELETE FROM {TableRef()} WHERE {string.Join(" AND ", whereParts)}";
 
             await ConnectionService.ChangeDatabaseAsync(selectedDatabase!);
             var (rowCount, error, requiresConfirmation) = await ConnectionService.RunQuery(query, false);
@@ -452,6 +452,10 @@
         }
     }
 
+    private string Quote(string identifier) => ConnectionService.Engine.QuoteIdentifier(identifier);
+
+    private string TableRef() => ConnectionService.Engine.QuoteTable(selectedTable!.Schema, selectedTable.Name);
+
     private string FormatSqlValue(string value, string type)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -463,7 +467,7 @@
         if (lowerType.Contains("char") || lowerType.Contains("text") || 
             lowerType.Contains("date") || lowerType.Contains("time"))
         {
-            var escapedValue = value.Replace("'", "''");
+            var escapedValue = ConnectionService.Engine.EscapeStringLiteral(value);
             return $"'{escapedValue}'"; 
         }
         

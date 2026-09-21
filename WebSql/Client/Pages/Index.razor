@@ -1,5 +1,6 @@
 ﻿@page "/"
 @using WebSql.Client.Components
+@using WebSql.Shared
 @using static WebSql.Client.Pages.ConnectionDialog
 @inject IConnectionService ConnectionService
 @inject IHxMessengerService Messenger
@@ -77,7 +78,7 @@
 								<HxDropdownButtonGroup>
 									<HxDropdownToggleButton Color="ThemeColor.Info" Icon="BootstrapIcon.ArrowRepeat">Transaction</HxDropdownToggleButton>
 									<HxDropdownMenu>
-										<HxDropdownItem OnClick="() => ExecuteTransactionCommand(TransactionCommands.Begin)">
+										<HxDropdownItem OnClick="() => ExecuteTransactionCommand(ConnectionService.Engine.BeginTransactionSql())">
 											<HxIcon Icon="BootstrapIcon.PlayCircle" CssClass="me-2" />BEGIN TRANSACTION
 										</HxDropdownItem>
 										<HxDropdownItem OnClick="() => ExecuteTransactionCommand(TransactionCommands.Commit)">
@@ -91,7 +92,7 @@
 								<HxDropdownButtonGroup>
 									<HxDropdownToggleButton Color="ThemeColor.Light" Icon="BootstrapIcon.FileEarmarkCode">Templates</HxDropdownToggleButton>
 									<HxDropdownMenu>
-										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.SelectTop100)">SELECT TOP 100</HxDropdownItem>
+										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.SelectTop100)">@(ConnectionService.Engine == DatabaseEngine.MySql ? "SELECT ... LIMIT 100" : "SELECT TOP 100")</HxDropdownItem>
 										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.SelectAll)">SELECT * FROM</HxDropdownItem>
 										<HxDropdownItem OnClick="() => InsertTemplate(QueryTemplates.SelectWhere)">SELECT WHERE</HxDropdownItem>
 										<HxDropdownDivider />
@@ -329,7 +330,7 @@
 
 	private async Task InsertTemplate(string template)
 	{
-		await codeEditor.SetValue(template);
+		await codeEditor.SetValue(QueryTemplates.For(template, ConnectionService.Engine));
 	}
 
 	private async Task ExecuteTransactionCommand(string command)
@@ -344,7 +345,7 @@
 			{
 				messagesPanel?.AddMessage($"{command} executed successfully.", MessagesPanel.MessageType.Success);
 				
-				if (command == TransactionCommands.Begin)
+				if (command == ConnectionService.Engine.BeginTransactionSql())
 				{
 					Messenger.AddInformation("Transaction started", "You can now execute queries within the transaction. Use COMMIT to save changes or ROLLBACK to undo.");
 				}
@@ -379,6 +380,52 @@
 
 	public static class QueryTemplates
 	{
+		/// <summary>The constants below are SQL Server syntax; this returns the equivalent for the connected engine.</summary>
+		public static string For(string template, DatabaseEngine engine)
+		{
+			if (engine != DatabaseEngine.MySql) return template;
+			if (MySqlOverrides.TryGetValue(template, out var mysql)) return mysql;
+			return System.Text.RegularExpressions.Regex.Replace(template, @"\[(\w+)\]", "`$1`");
+		}
+
+		private static readonly Dictionary<string, string> MySqlOverrides = new()
+		{
+			[SelectTop100] = @"SELECT *
+FROM `SchemaName`.`TableName`
+ORDER BY `ColumnName` DESC
+LIMIT 100",
+			[CreateTable] = @"CREATE TABLE `SchemaName`.`TableName`
+(
+    `Id` INT AUTO_INCREMENT PRIMARY KEY,
+    `Name` VARCHAR(255) NOT NULL,
+    `Description` TEXT,
+    `CreatedDate` DATETIME DEFAULT CURRENT_TIMESTAMP
+)",
+			[AlterTable] = @"ALTER TABLE `SchemaName`.`TableName`
+ADD COLUMN `NewColumn` VARCHAR(100) NULL",
+			[CreateIndex] = @"CREATE INDEX `IX_TableName_ColumnName`
+ON `SchemaName`.`TableName` (`ColumnName`)",
+			[StoredProc] = @"CREATE PROCEDURE `SchemaName`.`ProcedureName`(IN Parameter1 INT, IN Parameter2 VARCHAR(255))
+BEGIN
+    SELECT *
+    FROM `SchemaName`.`TableName`
+    WHERE `Column1` = Parameter1
+        AND `Column2` = Parameter2;
+END",
+			[Function] = @"CREATE FUNCTION `SchemaName`.`FunctionName`(Parameter1 INT)
+RETURNS VARCHAR(255)
+DETERMINISTIC
+BEGIN
+    DECLARE Result VARCHAR(255);
+
+    SELECT `ColumnName` INTO Result
+    FROM `SchemaName`.`TableName`
+    WHERE `Id` = Parameter1;
+
+    RETURN Result;
+END",
+		};
+
 		public const string SelectTop100 = @"SELECT TOP 100 *
 FROM [SchemaName].[TableName]
 ORDER BY [ColumnName] DESC";

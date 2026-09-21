@@ -1,19 +1,33 @@
-﻿using System.Data;
-using Microsoft.Data.SqlClient;
+using System.Data;
+using System.Data.Common;
 using System.Diagnostics;
+using Microsoft.Data.SqlClient;
+using MySqlConnector;
+using WebSql.Shared;
 
 namespace WebSql.DataAccess
 {
-    public class MSSQL
+    /// <summary>
+    /// Runs queries against SQL Server or MySQL/MariaDB. Each call opens (and disposes) its own connection.
+    /// </summary>
+    public class DatabaseRunner
     {
+        private readonly DatabaseEngine _engine;
         private readonly string _connectionString;
 
         public string ConnectionString => _connectionString;
 
-        public MSSQL(string connectionString)
+        public DatabaseRunner(DatabaseEngine engine, string connectionString)
         {
+            _engine = engine;
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
+
+        private DbConnection CreateConnection() => _engine switch
+        {
+            DatabaseEngine.MySql => new MySqlConnection(_connectionString),
+            _ => new SqlConnection(_connectionString)
+        };
 
         /// <summary>
         /// Executes a query and returns the results with execution metrics
@@ -27,7 +41,7 @@ namespace WebSql.DataAccess
 
             try
             {
-                await using var connection = new SqlConnection(_connectionString);
+                await using var connection = CreateConnection();
                 await connection.OpenAsync();
 
                 await using var command = connection.CreateCommand();
@@ -35,8 +49,10 @@ namespace WebSql.DataAccess
                 command.CommandTimeout = 300; // 5 minutes
 
                 var dt = new DataTable();
-                using var da = new SqlDataAdapter(command);
-                da.Fill(dt);
+                await using (var reader = await command.ExecuteReaderAsync())
+                {
+                    dt.Load(reader);
+                }
 
                 stopwatch.Stop();
 
@@ -50,32 +66,13 @@ namespace WebSql.DataAccess
         }
 
         /// <summary>
-        /// Legacy synchronous method - use RunQueryAsync instead
-        /// </summary>
-        [Obsolete("Use RunQueryAsync instead")]
-        public DataTable RunQuery(string query)
-        {
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-
-            using var command = connection.CreateCommand();
-            command.CommandText = query;
-
-            var dt = new DataTable();
-            using var da = new SqlDataAdapter(command);
-            da.Fill(dt);
-
-            return dt;
-        }
-
-        /// <summary>
         /// Tests the connection to ensure it's valid
         /// </summary>
         public async Task<bool> TestConnectionAsync()
         {
             try
             {
-                await using var connection = new SqlConnection(_connectionString);
+                await using var connection = CreateConnection();
                 await connection.OpenAsync();
                 return true;
             }

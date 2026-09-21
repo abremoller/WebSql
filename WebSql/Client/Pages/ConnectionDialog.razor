@@ -11,7 +11,10 @@
 					Server type:
 				</div>
 				<div class="col">
-					<HxInputText @bind-Value="engineType" Label="" Enabled="false" />
+					<select class="form-select mb-2" value="@engine" @onchange="OnEngineChanged">
+							<option value="@DatabaseEngine.SqlServer">@DatabaseEngine.SqlServer.DisplayName()</option>
+							<option value="@DatabaseEngine.MySql">@DatabaseEngine.MySql.DisplayName()</option>
+						</select>
 				</div>
 			</div>
 			<div class="row g-5">
@@ -41,7 +44,7 @@
 					Server name:
 				</div>
 				<div class="col">
-					<HxInputText @bind-Value="serverName" Label="" Placeholder="Enter server name" />
+					<HxInputText @bind-Value="serverName" Label="" Placeholder="@(engine == DatabaseEngine.MySql ? "host or host:port (e.g. localhost:3306)" : "Enter server name")" />
 					@if (serverDetails.Any())
 					{
 						<small class="text-muted">Recent servers:</small>
@@ -55,14 +58,17 @@
 					}
 				</div>
 			</div>
-			<div class="row g-5">
-				<div class="col">
-					Integrated Security:
+			@if (engine == DatabaseEngine.SqlServer)
+			{
+				<div class="row g-5">
+					<div class="col">
+						Integrated Security:
+					</div>
+					<div class="col">
+						<HxCheckbox @bind-Value="integratedSecurity" />
+					</div>
 				</div>
-				<div class="col">
-					<HxCheckbox @bind-Value="integratedSecurity" />
-				</div>
-			</div>
+			}
 			<div class="row g-5">
 				<div class="col">
 					Login:
@@ -101,7 +107,7 @@
 	private string password = "";
 	private string login = "";
 	private string serverName = "";
-	private string engineType = "SQL Database Engine";
+	private DatabaseEngine engine = DatabaseEngine.SqlServer;
 	private bool integratedSecurity = true;
 	private bool rememberDetails = true;
 	private List<string> serverDetails = new List<string>();
@@ -147,6 +153,7 @@
 		{
 			Console.WriteLine($"[ConnectionDialog] Connect clicked for server: {serverName}");
 			
+			ConnectionService.ConnectionDetails.Engine = engine;
 			ConnectionService.ConnectionDetails.ServerName = serverName;
 			ConnectionService.ConnectionDetails.Login = login;
 			ConnectionService.ConnectionDetails.Password = password;
@@ -193,7 +200,7 @@
 			else
 			{
 				Console.WriteLine("[ConnectionDialog] Connection failed");
-				Messenger.AddError("Connection Failed", "Unable to connect to the SQL Server. Please check your server name and credentials.");
+				Messenger.AddError("Connection Failed", $"Unable to connect to {engine.DisplayName()}. Please check your server name and credentials.");
 			}
 
 			return false;
@@ -209,6 +216,17 @@
 	private async Task HandleHideClick()
 	{
 		await connectionDialog.HideAsync();
+	}
+
+	private void OnEngineChanged(ChangeEventArgs e)
+	{
+		if (Enum.TryParse<DatabaseEngine>(e.Value?.ToString(), out var selected))
+		{
+			engine = selected;
+			// MySQL has no Windows/integrated login.
+			if (engine == DatabaseEngine.MySql)
+				integratedSecurity = false;
+		}
 	}
 
 	private void OnServerSelected(ChangeEventArgs e)
@@ -242,7 +260,8 @@
 			{
 				selectedProfileName = profileName;
 				this.profileName = profileName;
-				serverName = profile.ServerName;
+				engine = profile.Engine;
+					serverName = profile.ServerName;
 				login = profile.Login;
 				integratedSecurity = profile.IntegratedSecurity;
 				StateHasChanged();
@@ -265,6 +284,7 @@
 		connectionProfiles.Add(new ConnectionProfile
 		{
 			Name = profileName,
+			Engine = engine,
 			ServerName = serverName,
 			Login = login,
 			IntegratedSecurity = integratedSecurity
@@ -292,6 +312,7 @@
 	public class ConnectionProfile
 	{
 		public string Name { get; set; } = "";
+		public DatabaseEngine Engine { get; set; } = DatabaseEngine.SqlServer;
 		public string ServerName { get; set; } = "";
 		public string Login { get; set; } = "";
 		public bool IntegratedSecurity { get; set; }

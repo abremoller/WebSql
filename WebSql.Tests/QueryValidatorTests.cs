@@ -1,4 +1,5 @@
 using WebSql.Server.Services;
+using WebSql.Shared;
 
 namespace WebSql.Tests;
 
@@ -97,6 +98,81 @@ public class QueryValidatorTests
         var r = Prompt("SELECT 1; SELECT 2");
         Assert.IsTrue(r.IsValid);
         Assert.IsNotNull(r.WarningMessage);
+    }
+
+    private static QueryValidationResult MySql(string sql, bool confirmed = false) =>
+        new QueryValidator(DangerousOperationsMode.Prompt).Validate(sql, confirmed, DatabaseEngine.MySql);
+
+    [TestMethod]
+    [DataRow("SELECT * FROM `where` LIMIT 10")]
+    [DataRow("UPDATE customers SET name = 'x' WHERE id = 4")]
+    [DataRow("DELETE FROM customers WHERE id = 4")]
+    [DataRow("SELECT `exec`, `backup` FROM t")]                 // SQL Server keywords are ordinary names in MySQL
+    [DataRow("SHOW DATABASES")]
+    public void MySql_SafeStatements_AreNotFlagged(string sql)
+    {
+        var r = MySql(sql);
+        Assert.IsTrue(r.IsValid, r.ErrorMessage);
+    }
+
+    [TestMethod]
+    [DataRow("DROP TABLE customers")]
+    [DataRow("DROP/**/TABLE customers")]
+    [DataRow("DROP # sneaky\nTABLE customers")]                 // '#' comment used to split the keyword
+    [DataRow("DROP -- sneaky\nTABLE customers")]
+    [DataRow("/*!50000 DROP TABLE customers */")]               // executable comment is real code in MySQL
+    [DataRow(@"SELECT 'a\'; DROP TABLE customers; SELECT 'b'")] // backslash-escaped quote keeps the string open
+    [DataRow("TRUNCATE TABLE customers")]
+    [DataRow("SELECT * FROM t INTO OUTFILE '/tmp/x'")]
+    [DataRow("LOAD DATA INFILE '/etc/passwd' INTO TABLE t")]
+    [DataRow("SELECT LOAD_FILE('/etc/passwd')")]
+    [DataRow("SET GLOBAL general_log = 1")]
+    [DataRow("PREPARE s FROM 'DROP TABLE t'")]
+    [DataRow("CREATE USER 'a'@'%' IDENTIFIED BY 'x'")]
+    [DataRow("GRANT ALL ON *.* TO 'a'@'%'")]
+    [DataRow("KILL 12")]
+    public void MySql_DangerousStatements_RequireConfirmation(string sql)
+    {
+        var r = MySql(sql);
+        Assert.IsFalse(r.IsValid, sql);
+        Assert.IsTrue(r.RequiresConfirmation, sql);
+    }
+
+    [TestMethod]
+    [DataRow("DELETE FROM customers")]
+    [DataRow("UPDATE customers SET name = 'x'")]
+    [DataRow("UPDATE customers SET note = 'where'")]
+    [DataRow("DELETE FROM customers # WHERE id = 1")]           // a WHERE in a '#' comment doesn't count
+    [DataRow("UPDATE `where` SET a = 1")]                       // ...nor a backticked identifier
+    [DataRow(@"UPDATE t SET a = 'it\'s where'")]                // ...nor text after a backslash-escaped quote
+    public void MySql_WriteWithoutWhere_IsFlagged(string sql)
+    {
+        Assert.IsTrue(MySql(sql).RequiresConfirmation, sql);
+    }
+
+    [TestMethod]
+    public void MySql_DoubleDashWithoutSpace_IsNotAComment()
+    {
+        // In MySQL "1--1" is arithmetic, so the trailing text is still code and must still be scanned.
+        Assert.IsTrue(MySql("SELECT 1--1; DROP TABLE t").RequiresConfirmation);
+    }
+
+    [TestMethod]
+    public void MySql_BracketsAreNotIdentifierQuotes()
+    {
+        // "[" must not start a quoted region in MySQL, or a DROP after it would be hidden.
+        var (code, _) = QueryValidator.Sanitize("SELECT a[1; DROP TABLE t; SELECT b]", DatabaseEngine.MySql);
+        StringAssert.Contains(code, "DROP TABLE");
+    }
+
+    [TestMethod]
+    public void Sanitize_MySql_UnterminatedInput_DoesNotThrow()
+    {
+        QueryValidator.Sanitize(@"SELECT 'oops\", DatabaseEngine.MySql);
+        QueryValidator.Sanitize("SELECT `never closed", DatabaseEngine.MySql);
+        QueryValidator.Sanitize("SELECT /*! never closed", DatabaseEngine.MySql);
+        QueryValidator.Sanitize("SELECT #", DatabaseEngine.MySql);
+        QueryValidator.Sanitize("SELECT --", DatabaseEngine.MySql);
     }
 
     [TestMethod]

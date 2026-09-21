@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
+using MySqlConnector;
 using WebSql.Server.Configuration;
 using WebSql.Server.Security;
 using WebSql.Server.Services;
@@ -21,6 +22,70 @@ public class ConnectionManagerTests
 
     private static ConnectionDetails Sql(string server = "db1", string login = "reader", string password = "pw", string? database = null) =>
         new() { ServerName = server, Login = login, Password = password, SelectedDatabase = database };
+
+    private static ConnectionDetails MySql(string server = "db1", string login = "root", string password = "pw", string? database = null) =>
+        new() { Engine = DatabaseEngine.MySql, ServerName = server, Login = login, Password = password, SelectedDatabase = database };
+
+    [TestMethod]
+    public async Task MySql_SessionsRememberTheirEngine()
+    {
+        var mgr = Create();
+        var my = await mgr.CreateConnectionAsync(MySql());
+        var ms = await mgr.CreateConnectionAsync(Sql());
+
+        Assert.AreEqual(DatabaseEngine.MySql, mgr.GetEngine(my));
+        Assert.AreEqual(DatabaseEngine.SqlServer, mgr.GetEngine(ms));
+        Assert.AreEqual(DatabaseEngine.SqlServer, mgr.GetEngine("not-a-token"));
+    }
+
+    [TestMethod]
+    [DataRow("db1", "db1", 3306u)]
+    [DataRow("db1:3307", "db1", 3307u)]
+    [DataRow("::1", "::1", 3306u)] // IPv6 literal is not host:port
+    public async Task MySql_ServerNameIsSplitIntoHostAndPort(string server, string host, uint port)
+    {
+        var mgr = Create();
+        var token = await mgr.CreateConnectionAsync(MySql(server: server));
+
+        var b = new MySqlConnectionStringBuilder(mgr.GetConnectionString(token)!);
+        Assert.AreEqual(host, b.Server);
+        Assert.AreEqual(port, b.Port);
+    }
+
+    [TestMethod]
+    public async Task MySql_ConnectionStringInjection_IsNeutralised()
+    {
+        var mgr = Create();
+        var token = await mgr.CreateConnectionAsync(MySql(password: "x;Server=evil.example.com", login: "u;Database=mysql"));
+        mgr.UpdateDatabase(token, "sales;Password=hacked");
+
+        var b = new MySqlConnectionStringBuilder(mgr.GetConnectionString(token)!);
+        Assert.AreEqual("db1", b.Server);
+        Assert.AreEqual("x;Server=evil.example.com", b.Password);
+        Assert.AreEqual("u;Database=mysql", b.UserID);
+        Assert.AreEqual("sales;Password=hacked", b.Database);
+    }
+
+    [TestMethod]
+    public async Task MySql_RefusesIntegratedSecurity()
+    {
+        var mgr = Create(new SecuritySettings { AllowIntegratedSecurity = true });
+        var details = MySql();
+        details.IntegratedSecurity = true;
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => mgr.CreateConnectionAsync(details));
+    }
+
+    [TestMethod]
+    public async Task MySql_CertificateIsValidatedByDefault_AndOptInToTrust()
+    {
+        var strict = Create();
+        var t1 = await strict.CreateConnectionAsync(MySql());
+        Assert.AreEqual(MySqlSslMode.VerifyFull, new MySqlConnectionStringBuilder(strict.GetConnectionString(t1)!).SslMode);
+
+        var lax = Create(new SecuritySettings { TrustServerCertificate = true });
+        var t2 = await lax.CreateConnectionAsync(MySql());
+        Assert.AreEqual(MySqlSslMode.Required, new MySqlConnectionStringBuilder(lax.GetConnectionString(t2)!).SslMode);
+    }
 
     [TestMethod]
     public async Task IntegratedSecurity_IsRefusedByDefault()

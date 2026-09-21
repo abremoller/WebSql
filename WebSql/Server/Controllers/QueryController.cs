@@ -39,7 +39,7 @@ namespace WebSql.Server.Controllers
                 }
 
                 // Validate query for dangerous operations
-                var validationResult = _queryValidator.Validate(request.Query, request.ConfirmedDangerous);
+                var validationResult = _queryValidator.Validate(request.Query, request.ConfirmedDangerous, _connectionManager.GetEngine(request.SessionToken));
                 if (!validationResult.IsValid)
                 {
                     _logger.LogWarning("Dangerous query blocked: {DangerousOp} - Query: {Query}", 
@@ -70,7 +70,7 @@ namespace WebSql.Server.Controllers
                     });
                 }
 
-                var table = await ServerLogic.RunQueryAsync(connectionString, request.Query);
+                var table = await ServerLogic.RunQueryAsync(_connectionManager.GetEngine(request.SessionToken), connectionString, request.Query);
 
                 return Ok(new QueryResponse
                 {
@@ -115,7 +115,7 @@ namespace WebSql.Server.Controllers
                     });
                 }
 
-                var explorer = await ServerLogic.GetObjectExplorerAsync(connectionString);
+                var explorer = await ServerLogic.GetObjectExplorerAsync(_connectionManager.GetEngine(request.SessionToken), connectionString);
 
                 return Ok(new ObjectExplorerResponse
                 {

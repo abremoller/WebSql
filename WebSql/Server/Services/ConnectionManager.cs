@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Data.SqlClient;
+using MySqlConnector;
 using WebSql.Server.Security;
 using WebSql.Shared;
 
@@ -37,6 +38,7 @@ namespace WebSql.Server.Services
                 var session = new ConnectionSession
                 {
                     SessionToken = sessionId,
+                    Engine = connectionDetails.Engine,
                     ConnectionString = BuildConnectionString(connectionDetails),
                     ConnectionDetails = connectionDetails,
                     CreatedAt = DateTime.UtcNow,
@@ -67,6 +69,9 @@ namespace WebSql.Server.Services
             session.LastAccessedAt = DateTime.UtcNow;
             return session.ConnectionString;
         }
+
+        public DatabaseEngine GetEngine(string jwtToken) =>
+            FindLiveSession(jwtToken)?.Engine ?? DatabaseEngine.SqlServer;
 
         public Task DisconnectAsync(string jwtToken)
         {
@@ -112,6 +117,9 @@ namespace WebSql.Server.Services
 
             if (details.ServerName.Length > 255 || details.ServerName.Any(char.IsControl))
                 throw new ArgumentException("Server name is not valid");
+
+            if (details.IntegratedSecurity && details.Engine == DatabaseEngine.MySql)
+                throw new InvalidOperationException("Integrated security is not available for MySQL. Use a login and password.");
 
             if (details.IntegratedSecurity && !_settings.AllowIntegratedSecurity)
                 throw new InvalidOperationException(
@@ -162,9 +170,12 @@ namespace WebSql.Server.Services
 
         // ---- connection string ----------------------------------------------------------------
 
-        // Built with SqlConnectionStringBuilder so user-supplied values are escaped, never concatenated
-        // (a password like "x;Integrated Security=True" stays a password).
-        private string BuildConnectionString(ConnectionDetails details)
+        // Built with the drivers' connection string builders so user-supplied values are escaped, never
+        // concatenated (a password like "x;Integrated Security=True" stays a password).
+        private string BuildConnectionString(ConnectionDetails details) =>
+            details.Engine == DatabaseEngine.MySql ? BuildMySqlConnectionString(details) : BuildSqlServerConnectionString(details);
+
+        private string BuildSqlServerConnectionString(ConnectionDetails details)
         {
             var builder = new SqlConnectionStringBuilder
             {
@@ -190,9 +201,46 @@ namespace WebSql.Server.Services
             return builder.ConnectionString;
         }
 
+        private string BuildMySqlConnectionString(ConnectionDetails details)
+        {
+            var (host, port) = SplitHostAndPort(details.ServerName.Trim());
+
+            var builder = new MySqlConnectionStringBuilder
+            {
+                Server = host,
+                UserID = details.Login ?? string.Empty,
+                Password = details.Password ?? string.Empty,
+                ConnectionTimeout = 15,
+                // Same meaning as SQL Server's TrustServerCertificate: encrypt always, and only skip
+                // certificate validation when the operator has opted in.
+                SslMode = _settings.TrustServerCertificate ? MySqlSslMode.Required : MySqlSslMode.VerifyFull,
+                AllowUserVariables = true,
+                ConvertZeroDateTime = true // '0000-00-00' would otherwise throw while loading results
+            };
+
+            if (port is not null)
+                builder.Port = port.Value;
+
+            if (!string.IsNullOrWhiteSpace(details.SelectedDatabase))
+                builder.Database = details.SelectedDatabase;
+
+            return builder.ConnectionString;
+        }
+
+        // "host" or "host:port". IPv6 literals (more than one colon) are left alone.
+        private static (string Host, uint? Port) SplitHostAndPort(string server)
+        {
+            var idx = server.LastIndexOf(':');
+            if (idx > 0 && server.IndexOf(':') == idx && uint.TryParse(server[(idx + 1)..], out var port) && port is > 0 and <= 65535)
+                return (server[..idx], port);
+
+            return (server, null);
+        }
+
         private class ConnectionSession
         {
             public string SessionToken { get; set; } = string.Empty;
+            public DatabaseEngine Engine { get; set; }
             public string ConnectionString { get; set; } = string.Empty;
             public ConnectionDetails ConnectionDetails { get; set; } = new();
             public DateTime CreatedAt { get; set; }
