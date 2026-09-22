@@ -21,16 +21,18 @@
                                 <ul class="list-unstyled ms-4 mt-1">
                                     @foreach (var table in db.Database.Tables)
                                     {
-                                        <li class="py-1 position-relative"
-                                            @oncontextmenu="() => ShowTableContextMenu(table)"
+                                        <li class="py-1"
+                                            @oncontextmenu="(MouseEventArgs e) => ShowTableContextMenu(table, e)"
                                             @oncontextmenu:preventDefault="true">
                                             <HxIcon Icon="@BootstrapIcon.Table" CssClass="me-2" />
                                             <span class="text-muted">@table.Schema.</span><span>@table.Name</span>
 
                                             @if (ReferenceEquals(contextMenuTable, table))
                                             {
-                                                <div class="dropdown-menu show shadow" style="position: absolute; top: 100%; left: 1.5rem; z-index: 1050;">
-                                                    <button type="button" class="dropdown-item" @onclick="() => SelectTop1000(db, table)">
+                                                <!-- position: fixed (not absolute) so the menu escapes the sidebar's own
+                                                     overflow:hidden clipping instead of being cut off inside it. -->
+                                                <div class="dropdown-menu show shadow" style="position: fixed; top: @(contextMenuY)px; left: @(contextMenuX)px; z-index: 1050;">
+                                                    <button type="button" class="dropdown-item text-nowrap" @onclick="() => SelectTop1000(db, table)">
                                                         <HxIcon Icon="BootstrapIcon.CaretRight" CssClass="me-2" />Select Top 1000 Rows
                                                     </button>
                                                 </div>
@@ -64,6 +66,8 @@
     private Directory[]? fileSystem;
     private HashSet<Directory> expandedDatabases = new HashSet<Directory>();
     private Table? contextMenuTable;
+    private double contextMenuX;
+    private double contextMenuY;
 
     [Parameter]
     public EventCallback OnDataLoaded { get; set; }
@@ -73,7 +77,12 @@
     [Parameter]
     public EventCallback<(string Database, Table Table)> OnSelectTopRows { get; set; }
 
-    private void ShowTableContextMenu(Table table) => contextMenuTable = table;
+    private void ShowTableContextMenu(Table table, MouseEventArgs e)
+    {
+        contextMenuTable = table;
+        contextMenuX = e.ClientX;
+        contextMenuY = e.ClientY;
+    }
 
     private void CloseContextMenu() => contextMenuTable = null;
 
