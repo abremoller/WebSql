@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using WebSql.Server.Security;
 using WebSql.Server.Services;
 using WebSql.Shared.DTOs;
 
@@ -12,11 +13,13 @@ namespace WebSql.Server.Controllers
         private readonly IConnectionManager _connectionManager;
         private readonly ILogger<QueryController> _logger;
         private readonly QueryValidator _queryValidator;
+        private readonly SecuritySettings _security;
 
-        public QueryController(IConnectionManager connectionManager, ILogger<QueryController> logger, IConfiguration configuration)
+        public QueryController(IConnectionManager connectionManager, ILogger<QueryController> logger, IConfiguration configuration, SecuritySettings security)
         {
             _connectionManager = connectionManager;
             _logger = logger;
+            _security = security;
             
             // Read security mode from configuration
             var modeString = configuration["Security:DangerousOperationsMode"] ?? "Prompt";
@@ -42,9 +45,9 @@ namespace WebSql.Server.Controllers
                 var validationResult = _queryValidator.Validate(request.Query, request.ConfirmedDangerous, _connectionManager.GetEngine(request.SessionToken));
                 if (!validationResult.IsValid)
                 {
-                    _logger.LogWarning("Dangerous query blocked: {DangerousOp} - Query: {Query}", 
-                        validationResult.DangerousOperation, 
-                        request.Query.Substring(0, Math.Min(100, request.Query.Length)));
+                    // The query text is deliberately not logged: it can contain literals such as passwords.
+                    _logger.LogWarning("Dangerous query blocked or awaiting confirmation: {DangerousOp} ({Length} chars)",
+                        validationResult.DangerousOperation, request.Query.Length);
                     
                     return BadRequest(new QueryResponse
                     {
@@ -70,7 +73,7 @@ namespace WebSql.Server.Controllers
                     });
                 }
 
-                var table = await ServerLogic.RunQueryAsync(_connectionManager.GetEngine(request.SessionToken), connectionString, request.Query);
+                var table = await ServerLogic.RunQueryAsync(_connectionManager.GetEngine(request.SessionToken), connectionString, request.Query, _security.MaxRows, _security.QueryTimeoutSeconds);
 
                 return Ok(new QueryResponse
                 {

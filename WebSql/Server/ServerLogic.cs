@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.Data.SqlClient;
 using MySqlConnector;
 using WebSql.DataAccess;
@@ -157,9 +157,9 @@ namespace WebSql.Server
 			return await logic.ReadObjectExplorerAsync();
         }
 
-		public static async Task<(Table Table, int RowsAffected, double ExecutionTimeMs)> RunQueryAsync(DatabaseEngine engine, string connectionString, string query)
+		public static async Task<(Table Table, int RowsAffected, double ExecutionTimeMs)> RunQueryAsync(DatabaseEngine engine, string connectionString, string query, int maxRows = 0, int timeoutSeconds = 300)
         {
-			var sql = new DatabaseRunner(engine, connectionString);
+			var sql = new DatabaseRunner(engine, connectionString, maxRows, timeoutSeconds);
 			var (dt, executionTime, rowsAffected) = await sql.RunQueryAsync(query);
 
 			Table table = new Table();

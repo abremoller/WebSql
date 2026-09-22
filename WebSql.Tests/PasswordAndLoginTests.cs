@@ -132,6 +132,19 @@ public class BasicAuthMiddlewareTests
     }
 
     [TestMethod]
+    public async Task SuccessfulLogin_ResetsEarlierFailures()
+    {
+        var settings = Configured();
+        var mw = new BasicAuthMiddleware(_ => Task.CompletedTask, settings, NullLogger<BasicAuthMiddleware>.Instance);
+
+        // Two failures, a success, then two more failures must not add up to a lockout (limit is 3).
+        for (var i = 0; i < 2; i++) await Send(settings, "admin", "bad-guess-" + i, "10.0.0.20", mw);
+        Assert.AreEqual(200, (await Send(settings, "admin", Password, "10.0.0.20", mw)).Status);
+        for (var i = 0; i < 2; i++) Assert.AreEqual(401, (await Send(settings, "admin", "bad-guess-" + i, "10.0.0.20", mw)).Status);
+        Assert.AreEqual(200, (await Send(settings, "admin", Password, "10.0.0.20", mw)).Status);
+    }
+
+    [TestMethod]
     public async Task IpAllowlist_BlocksOthers_AndAllowsListed()
     {
         var settings = Configured(s => s.AllowedIps = ["203.0.113.5"]);

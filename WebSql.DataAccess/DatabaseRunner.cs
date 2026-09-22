@@ -17,8 +17,14 @@ namespace WebSql.DataAccess
 
         public string ConnectionString => _connectionString;
 
-        public DatabaseRunner(DatabaseEngine engine, string connectionString)
+        private readonly int _maxRows;
+        private readonly int _timeoutSeconds;
+
+        /// <param name="maxRows">Queries returning more rows than this fail instead of exhausting memory. 0 = no limit.</param>
+        public DatabaseRunner(DatabaseEngine engine, string connectionString, int maxRows = 0, int timeoutSeconds = 300)
         {
+            _maxRows = maxRows;
+            _timeoutSeconds = timeoutSeconds;
             _engine = engine;
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
@@ -46,12 +52,29 @@ namespace WebSql.DataAccess
 
                 await using var command = connection.CreateCommand();
                 command.CommandText = query;
-                command.CommandTimeout = 300; // 5 minutes
+                command.CommandTimeout = _timeoutSeconds;
 
                 var dt = new DataTable();
                 await using (var reader = await command.ExecuteReaderAsync())
                 {
-                    dt.Load(reader);
+                    // First result set only (as DataTable.Load did), read row by row so the cap applies while streaming.
+                    for (var i = 0; i < reader.FieldCount; i++)
+                    {
+                        var name = reader.GetName(i);
+                        if (string.IsNullOrEmpty(name) || dt.Columns.Contains(name)) name = $"{(string.IsNullOrEmpty(name) ? "Column" : name)}{i + 1}";
+                        dt.Columns.Add(name, reader.GetFieldType(i) ?? typeof(object));
+                    }
+
+                    var values = new object[reader.FieldCount];
+                    while (await reader.ReadAsync())
+                    {
+                        if (_maxRows > 0 && dt.Rows.Count >= _maxRows)
+                            throw new InvalidOperationException(
+                                $"The result has more than {_maxRows:N0} rows. Narrow it with WHERE, TOP or LIMIT.");
+
+                        reader.GetValues(values);
+                        dt.Rows.Add(values);
+                    }
                 }
 
                 stopwatch.Stop();

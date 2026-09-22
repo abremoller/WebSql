@@ -107,6 +107,8 @@ The site **refuses every request until a login is configured**.
 | `Security:AllowedServers` | `[]` | If set, users can only connect to these servers |
 | `Security:SessionIdleMinutes` / `Security:MaxSessions` | 30 / 25 | Idle sessions are dropped and their credentials forgotten |
 | `Security:DangerousOperationsMode` | `Prompt` | `Disabled`, `Prompt` or `Enabled` for DROP, TRUNCATE, EXEC, UPDATE/DELETE without WHERE and similar |
+| `Security:TrustedProxies` | `[]` | IPs of reverse proxies (e.g. Plesk's nginx) whose `X-Forwarded-For`/`-Proto` headers are trusted. **Set this when hosted behind a proxy**, otherwise lockout, rate limits and `Auth:AllowedIps` all see the proxy's address |
+| `Security:MaxRows` / `Security:QueryTimeoutSeconds` | 50000 / 120 | A query returning more rows than this fails instead of exhausting server memory (0 = no limit) |
 | `RateLimiting:ConnectPermitLimit` | 10 per minute per IP | Throttles connection attempts (guessing SQL logins) |
 | `JwtSettings:SecretKey` | empty | Leave empty: a random key is generated at startup (sessions do not survive restarts anyway). A configured key must be 32+ characters |
 
@@ -122,7 +124,10 @@ The site **refuses every request until a login is configured**.
 
 - The dangerous-operation prompt is a guard against **accidents**, not a security boundary. The real boundary is the permissions of the SQL login you connect with: **use a least-privilege (ideally read-only) login.**
 - The login uses HTTP Basic auth, so it is only safe over HTTPS.
-- Behind a reverse proxy, the client IP used for lockout and the allowlist is the address the app sees; make sure the real client address is passed through before relying on `Auth:AllowedIps`.
+- Behind a reverse proxy, list the proxy in `Security:TrustedProxies` so the real client address is used for lockout and `Auth:AllowedIps`. Never list addresses you do not control.
+- Recommended for a gateway to a remote server: set `Auth:AllowedIps` (or use a VPN), set `Security:AllowedServers` to that one host, and set `DangerousOperationsMode` to `Disabled`. "Prompt" is confirmed by the browser, so a caller of the API can skip it.
+- Set `AllowedHosts` to your real hostname in production.
+- The Data Editor quotes every value except validated numbers, and refuses `;` and comments in its WHERE filter.
 - Run `dotnet test` for the 68 tests covering the login, connection policy and query guard.
 
 ## 🛣️ Roadmap

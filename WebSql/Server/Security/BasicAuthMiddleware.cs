@@ -54,10 +54,11 @@ namespace WebSql.Server.Security
                 return;
             }
 
-            var state = _attempts.GetOrAdd(ipKey, _ => new Attempts());
-            if (state.LockedUntil > DateTime.UtcNow)
+            // Entries are only created for failures (and dropped on success), so the table can't be
+            // inflated by ordinary traffic.
+            if (_attempts.TryGetValue(ipKey, out var existing) && existing.LockedUntil > DateTime.UtcNow)
             {
-                var wait = (int)Math.Ceiling((state.LockedUntil - DateTime.UtcNow).TotalSeconds);
+                var wait = (int)Math.Ceiling((existing.LockedUntil - DateTime.UtcNow).TotalSeconds);
                 context.Response.Headers.RetryAfter = wait.ToString();
                 await Refuse(context, StatusCodes.Status429TooManyRequests, "Too many failed sign-in attempts. Try again later.");
                 return;
@@ -71,12 +72,12 @@ namespace WebSql.Server.Security
 
                 if (passwordOk && userOk)
                 {
-                    state.Failures = 0;
+                    _attempts.TryRemove(ipKey, out _);
                     await _next(context);
                     return;
                 }
 
-                RegisterFailure(state, ipKey);
+                RegisterFailure(_attempts.GetOrAdd(ipKey, _ => new Attempts()), ipKey);
             }
 
             context.Response.Headers.WWWAuthenticate = "Basic realm=\"WebSql\", charset=\"UTF-8\"";
@@ -85,9 +86,11 @@ namespace WebSql.Server.Security
 
         private void RegisterFailure(Attempts state, string ipKey)
         {
+            PurgeStale();
             lock (state)
             {
                 state.Failures++;
+                state.LastFailure = DateTime.UtcNow;
                 if (state.Failures >= _settings.MaxFailedAttempts)
                 {
                     state.LockedUntil = DateTime.UtcNow.AddMinutes(_settings.LockoutMinutes);
@@ -95,6 +98,17 @@ namespace WebSql.Server.Security
                     _logger.LogWarning("Locked out {Ip} for {Minutes} minutes after repeated failed sign-ins", ipKey, _settings.LockoutMinutes);
                 }
             }
+        }
+
+        // Bounds memory if someone sprays failures from many addresses.
+        private void PurgeStale()
+        {
+            if (_attempts.Count < 10_000) return;
+
+            var cutoff = DateTime.UtcNow.AddMinutes(-Math.Max(_settings.LockoutMinutes, 60));
+            foreach (var (ip, a) in _attempts)
+                if (a.LockedUntil < DateTime.UtcNow && a.LastFailure < cutoff)
+                    _attempts.TryRemove(ip, out _);
         }
 
         private static bool TryReadCredentials(HttpContext context, out string user, out string password)
@@ -129,6 +143,7 @@ namespace WebSql.Server.Security
         {
             public int Failures;
             public DateTime LockedUntil = DateTime.MinValue;
+            public DateTime LastFailure = DateTime.MinValue;
         }
     }
 }

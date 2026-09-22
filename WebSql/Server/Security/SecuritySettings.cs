@@ -44,5 +44,17 @@ namespace WebSql.Server.Security
         public double SessionIdleMinutes { get; set; } = 30;
 
         public int MaxSessions { get; set; } = 25;
+
+        /// <summary>A query returning more rows than this is refused (protects the server's memory). 0 = no limit.</summary>
+        public int MaxRows { get; set; } = 50_000;
+
+        /// <summary>Per-query timeout.</summary>
+        public int QueryTimeoutSeconds { get; set; } = 120;
+
+        /// <summary>
+        /// Addresses of reverse proxies (e.g. Plesk's nginx) whose X-Forwarded-For / X-Forwarded-Proto headers are believed,
+        /// so lockout, rate limits and Auth:AllowedIps see the real client. Empty = headers are ignored (safe when not behind a proxy).
+        /// </summary>
+        public string[] TrustedProxies { get; set; } = [];
     }
 }

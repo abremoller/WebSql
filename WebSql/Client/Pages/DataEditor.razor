@@ -67,6 +67,10 @@
                             </div>
                         </div>
                         <div class="card-body">
+                            @if (errorMessage != null && !showEditModal)
+                            {
+                                <HxAlert Color="ThemeColor.Danger">@errorMessage</HxAlert>
+                            }
                             @if (whereClause == null)
                             {
                                 <HxAlert Color="ThemeColor.Info">
@@ -291,10 +295,20 @@
 
     private void ApplyWhereClause()
     {
-        if (!string.IsNullOrWhiteSpace(whereClauseInput))
+        if (string.IsNullOrWhiteSpace(whereClauseInput))
+            return;
+
+        var clause = whereClauseInput.Trim();
+
+        // The filter is a single condition, not a place for extra statements or comments.
+        if (clause.Contains(';') || clause.Contains("--") || clause.Contains("/*") || clause.Contains('#'))
         {
-            whereClause = whereClauseInput.Trim();
+            errorMessage = "The WHERE clause cannot contain ';' or comments.";
+            return;
         }
+
+        errorMessage = null;
+        whereClause = clause;
     }
 
     private void ClearWhereClause()
@@ -318,8 +332,9 @@
             var query = $"SELECT * FROM {TableRef()} WHERE {whereClause}";
             
             await ConnectionService.ChangeDatabaseAsync(selectedDatabase!);
-            var (rowCount, error, requiresConfirmation) = await ConnectionService.RunQuery(query, true);
-            
+            // Not pre-confirmed: the server's dangerous-operation guard must see this query too.
+            var (rowCount, error, requiresConfirmation) = await ConnectionService.RunQuery(query, false);
+
             if (error != null)
             {
                 errorMessage = error;
@@ -456,24 +471,9 @@
 
     private string TableRef() => ConnectionService.Engine.QuoteTable(selectedTable!.Schema, selectedTable.Name);
 
-    private string FormatSqlValue(string value, string type)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return "NULL";
-
-        var lowerType = type.ToLower();
-        
-        // String types need quotes
-        if (lowerType.Contains("char") || lowerType.Contains("text") || 
-            lowerType.Contains("date") || lowerType.Contains("time"))
-        {
-            var escapedValue = ConnectionService.Engine.EscapeStringLiteral(value);
-            return $"'{escapedValue}'"; 
-        }
-        
-        // Numeric and other types don't need quotes
-        return value;
-    }
+    // Numbers are validated, everything else is quoted - a value can never become SQL.
+    private string FormatSqlValue(string value, string type) =>
+        ConnectionService.Engine.FormatLiteral(value, type);
 
     private string TruncateValue(string value, int maxLength = 50)
     {

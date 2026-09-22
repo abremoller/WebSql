@@ -1,4 +1,6 @@
+using System.Net;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.HttpOverrides;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using WebSql.Server.Configuration;
@@ -119,6 +121,24 @@ else
     app.UseHsts();
 }
 
+// Only believe X-Forwarded-* from proxies the operator listed; otherwise anyone could spoof their IP.
+if (securitySettings.TrustedProxies.Length > 0)
+{
+    var forwarded = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        ForwardLimit = 1
+    };
+    forwarded.KnownProxies.Clear();
+    forwarded.KnownNetworks.Clear();
+    foreach (var p in securitySettings.TrustedProxies)
+    {
+        if (IPAddress.TryParse(p.Trim(), out var proxyIp)) forwarded.KnownProxies.Add(proxyIp);
+        else app.Logger.LogWarning("Security:TrustedProxies entry '{Entry}' is not an IP address and was ignored", p);
+    }
+    app.UseForwardedHeaders(forwarded);
+}
+
 app.UseHttpsRedirection();
 
 // Response hardening. (No CSP: the Monaco editor needs inline/eval/blob workers; nosniff + framing
@@ -129,6 +149,7 @@ app.Use(async (context, next) =>
     headers["X-Content-Type-Options"] = "nosniff";
     headers["X-Frame-Options"] = "DENY";
     headers["Referrer-Policy"] = "no-referrer";
+    headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     if (context.Request.Path.StartsWithSegments("/api"))
         headers.CacheControl = "no-store";
     await next();
