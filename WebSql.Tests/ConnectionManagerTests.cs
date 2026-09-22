@@ -132,6 +132,20 @@ public class ConnectionManagerTests
     }
 
     [TestMethod]
+    [DataRow("db1", "db1")]                    // unchanged: no port
+    [DataRow("db1,1433", "db1,1433")]           // unchanged: SQL Server's own comma syntax
+    [DataRow("127.0.0.1:14330", "127.0.0.1,14330")] // "host:port", as typed in the dialog, is accepted too
+    [DataRow("::1", "::1")]                     // IPv6 literal is not host:port
+    public async Task Sql_ColonPortSyntax_IsAcceptedLikeComma(string server, string expectedDataSource)
+    {
+        var mgr = Create();
+        var token = await mgr.CreateConnectionAsync(Sql(server: server));
+
+        var b = new SqlConnectionStringBuilder(mgr.GetConnectionString(token)!);
+        Assert.AreEqual(expectedDataSource, b.DataSource);
+    }
+
+    [TestMethod]
     public async Task ServerCertificate_IsValidatedByDefault_AndOptInToTrust()
     {
         var strict = Create();

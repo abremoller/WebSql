@@ -3,25 +3,25 @@
 @inject ILocalStorageService LocalStorage
 @inject IHxMessengerService Messenger
 
-<HxModal @ref="connectionDialog" Title="Connect To Server">
+<HxModal @ref="connectionDialog" Title="Connect To Server" Size="ModalSize.Large">
 	<BodyTemplate>
-		<div class="container overflow-hidden">
-			<div class="row g-5">
-				<div class="col">
+		<div class="container-fluid">
+			<div class="row g-3 align-items-center mb-2">
+				<div class="col-4 col-sm-3">
 					Server type:
 				</div>
-				<div class="col">
-					<select class="form-select mb-2" value="@engine" @onchange="OnEngineChanged">
+				<div class="col-8 col-sm-9">
+					<select class="form-select" value="@engine" @onchange="OnEngineChanged">
 							<option value="@DatabaseEngine.SqlServer">@DatabaseEngine.SqlServer.DisplayName()</option>
 							<option value="@DatabaseEngine.MySql">@DatabaseEngine.MySql.DisplayName()</option>
 						</select>
 				</div>
 			</div>
-			<div class="row g-5">
-				<div class="col">
+			<div class="row g-3 mb-2">
+				<div class="col-4 col-sm-3">
 					Connection Profile:
 				</div>
-				<div class="col">
+				<div class="col-8 col-sm-9">
 					<select class="form-select mb-2" @onchange="OnProfileSelected">
 						<option value="">-- Select saved profile --</option>
 						@foreach (var profile in connectionProfiles)
@@ -39,12 +39,13 @@
 					</div>
 				</div>
 			</div>
-			<div class="row g-5">
-				<div class="col">
+			<div class="row g-3 mb-2">
+				<div class="col-4 col-sm-3">
 					Server name:
 				</div>
-				<div class="col">
-					<HxInputText @bind-Value="serverName" Label="" Placeholder="@(engine == DatabaseEngine.MySql ? "host or host:port (e.g. localhost:3306)" : "Enter server name")" />
+				<div class="col-8 col-sm-9">
+					<HxInputText @bind-Value="serverName" Label=""
+					             Placeholder="@(engine == DatabaseEngine.MySql ? "host or host,port (e.g. localhost,3306)" : "host or host,port (e.g. localhost,1433)")" />
 					@if (serverDetails.Any())
 					{
 						<small class="text-muted">Recent servers:</small>
@@ -60,36 +61,44 @@
 			</div>
 			@if (engine == DatabaseEngine.SqlServer)
 			{
-				<div class="row g-5">
-					<div class="col">
+				<div class="row g-3 align-items-center mb-2">
+					<div class="col-4 col-sm-3">
 						Integrated Security:
 					</div>
-					<div class="col">
+					<div class="col-8 col-sm-9">
 						<HxCheckbox @bind-Value="integratedSecurity" />
 					</div>
 				</div>
 			}
-			<div class="row g-5">
-				<div class="col">
+			<div class="row g-3 align-items-center mb-2">
+				<div class="col-4 col-sm-3">
 					Login:
 				</div>
-				<div class="col">
+				<div class="col-8 col-sm-9">
 					<HxInputText @bind-Value="login" Label="" Enabled="@(!integratedSecurity)" />
 				</div>
 			</div>
-			<div class="row g-5">
-				<div class="col">
+			<div class="row g-3 align-items-center mb-2">
+				<div class="col-4 col-sm-3">
 					Password:
 				</div>
-				<div class="col">
-					<HxInputText @bind-Value="password" Label="" InputType="InputType.Password" Enabled="@(!integratedSecurity)" />
+				<div class="col-8 col-sm-9">
+					<div class="input-group">
+						<HxInputText @bind-Value="password" Label="" Type="@(showPassword ? InputType.Text : InputType.Password)"
+						             Enabled="@(!integratedSecurity)" autocomplete="current-password" />
+						<button type="button" class="btn btn-outline-secondary" tabindex="-1"
+						        disabled="@integratedSecurity" @onclick="() => showPassword = !showPassword"
+						        title="@(showPassword ? "Hide password" : "Show password")">
+							<HxIcon Icon="@(showPassword ? BootstrapIcon.EyeSlash : BootstrapIcon.Eye)" />
+						</button>
+					</div>
 				</div>
 			</div>
-			<div class="row g-5">
-				<div class="col">
+			<div class="row g-3 align-items-center mb-2">
+				<div class="col-4 col-sm-3">
 					Remember Details
 				</div>
-				<div class="col">
+				<div class="col-8 col-sm-9">
 					<HxCheckbox @bind-Value="rememberDetails" Enabled="@(!integratedSecurity)" />
 				</div>
 			</div>
@@ -105,6 +114,7 @@
 {
 	private HxModal connectionDialog;
 	private string password = "";
+	private bool showPassword = false;
 	private string login = "";
 	private string serverName = "";
 	private DatabaseEngine engine = DatabaseEngine.SqlServer;

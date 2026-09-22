@@ -14,7 +14,7 @@
 					<HxSidebarItem Text="Server" Icon="BootstrapIcon.Cloud">
 						@if(connected && ConnectionService.ObjectExplorer != null)
 						{
-							<ObjectExplorer @ref="objectExplorer" OnDataLoaded="OnObjectExplorerDataLoaded" />
+							<ObjectExplorer @ref="objectExplorer" OnDataLoaded="OnObjectExplorerDataLoaded" OnSelectTopRows="HandleSelectTopRows" />
 						}
 					</HxSidebarItem>
 					<HxSidebarItem Text="Connect" Icon="BootstrapIcon.CloudArrowUp">
@@ -309,6 +309,26 @@
 	{
 		await ConnectionService.ChangeDatabaseAsync(selectedItem);
 		StateHasChanged();
+	}
+
+	private async Task HandleSelectTopRows((string Database, Table Table) args)
+	{
+		var (database, table) = args;
+
+		// The table's owning database may not be the one currently selected in the toolbar.
+		if (!string.Equals(database, ConnectionService.SelectedDatabase, StringComparison.OrdinalIgnoreCase))
+		{
+			await ConnectionService.ChangeDatabaseAsync(database);
+			StateHasChanged();
+		}
+
+		var tableRef = ConnectionService.Engine.QuoteTable(table.Schema, table.Name);
+		var query = ConnectionService.Engine == DatabaseEngine.MySql
+			? $"SELECT * FROM {tableRef} LIMIT 1000"
+			: $"SELECT TOP 1000 * FROM {tableRef}";
+
+		await codeEditor.SetValue(query);
+		await RunQuery();
 	}
 
 	private void OnObjectExplorerDataLoaded()

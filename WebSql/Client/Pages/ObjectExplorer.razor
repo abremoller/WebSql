@@ -21,9 +21,20 @@
                                 <ul class="list-unstyled ms-4 mt-1">
                                     @foreach (var table in db.Database.Tables)
                                     {
-                                        <li class="py-1">
+                                        <li class="py-1 position-relative"
+                                            @oncontextmenu="() => ShowTableContextMenu(table)"
+                                            @oncontextmenu:preventDefault="true">
                                             <HxIcon Icon="@BootstrapIcon.Table" CssClass="me-2" />
                                             <span class="text-muted">@table.Schema.</span><span>@table.Name</span>
+
+                                            @if (ReferenceEquals(contextMenuTable, table))
+                                            {
+                                                <div class="dropdown-menu show shadow" style="position: absolute; top: 100%; left: 1.5rem; z-index: 1050;">
+                                                    <button type="button" class="dropdown-item" @onclick="() => SelectTop1000(db, table)">
+                                                        <HxIcon Icon="BootstrapIcon.CaretRight" CssClass="me-2" />Select Top 1000 Rows
+                                                    </button>
+                                                </div>
+                                            }
                                         </li>
                                     }
                                 </ul>
@@ -38,6 +49,13 @@
             <div class="text-muted p-2">Loading server explorer...</div>
         }
     </div>
+
+    @if (contextMenuTable != null)
+    {
+        <!-- Full-viewport, invisible: closes the context menu on any click outside it. Sits below
+             the menu's own z-index (1050) so clicks on the menu itself still reach its button. -->
+        <div style="position: fixed; inset: 0; z-index: 1040;" @onclick="CloseContextMenu"></div>
+    }
 </div>
 
 @code {
@@ -45,9 +63,25 @@
     private Directory? selectedDirectory;
     private Directory[]? fileSystem;
     private HashSet<Directory> expandedDatabases = new HashSet<Directory>();
+    private Table? contextMenuTable;
 
     [Parameter]
     public EventCallback OnDataLoaded { get; set; }
+
+    /// <summary>Raised when "Select Top 1000 Rows" is chosen. The database is the table's owner,
+    /// which may not be the currently selected one.</summary>
+    [Parameter]
+    public EventCallback<(string Database, Table Table)> OnSelectTopRows { get; set; }
+
+    private void ShowTableContextMenu(Table table) => contextMenuTable = table;
+
+    private void CloseContextMenu() => contextMenuTable = null;
+
+    private async Task SelectTop1000(Directory db, Table table)
+    {
+        CloseContextMenu();
+        await OnSelectTopRows.InvokeAsync((db.Name, table));
+    }
 
     private void ToggleDatabase(Directory db)
     {

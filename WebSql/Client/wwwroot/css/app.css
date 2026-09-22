@@ -2,6 +2,12 @@
 
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    /* Running a query grows the page (results/messages/error toasts), which can cross the
+       viewport height and bring in a vertical scrollbar. Without this, that scrollbar's own
+       width narrows the content column and the whole page visibly shifts left/up at that
+       moment. Reserving the gutter up front keeps the layout stable whether or not it's needed. */
+    scrollbar-gutter: stable;
+    overflow-y: scroll;
 }
 
 h1:focus {

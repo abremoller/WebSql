@@ -177,9 +177,15 @@ namespace WebSql.Server.Services
 
         private string BuildSqlServerConnectionString(ConnectionDetails details)
         {
+            // SQL Server's own syntax for a port is "host,port", not "host:port" - but "host:port" is
+            // what everyone types (it's what the MySQL field on the same dialog uses). Accept it too,
+            // rather than silently trying to resolve "myhost:1433" as a literal, unresolvable hostname.
+            var (host, port) = SplitHostAndPort(details.ServerName.Trim());
+            var dataSource = port is null ? host : $"{host},{port}";
+
             var builder = new SqlConnectionStringBuilder
             {
-                DataSource = details.ServerName.Trim(),
+                DataSource = dataSource,
                 TrustServerCertificate = _settings.TrustServerCertificate,
                 ConnectTimeout = 15,
                 ApplicationName = "WebSql"
